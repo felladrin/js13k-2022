@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>JS13K 2022</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        outline: none;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: black;
+        touch-action: none;
+      }
+
+      .a {
+        display: grid;
+        width: 100%;
+        height: 100%;
+      }
+
+      @media (orientation: landscape) {
+        .a {
+          grid-template-areas: "a1 a2";
+          grid-template-columns: 250px 1fr;
+        }
+
+        #canvas {
+          max-width: calc(100vw - 250px);
+          max-height: 100vh;
+        }
+      }
+
+      @media (orientation: portrait) {
+        .a {
+          grid-template-areas:
+            "a1"
+            "a2";
+          grid-template-rows: 200px 1fr;
+        }
+
+        #canvas {
+          max-width: 100vw;
+          max-height: calc(100vh - 200px);
+        }
+      }
+
+      .a1 {
+        grid-area: a1;
+      }
+
+      .a2 {
+        grid-area: a2;
+      }
+
+      .b {
+        display: grid;
+        width: 100%;
+        height: 100%;
+        grid-template-areas:
+          "b1 b1"
+          "b2 b3";
+        grid-template-columns: 1fr 64px;
+        grid-template-rows: 1fr 32px;
+      }
+
+      .b1 {
+        grid-area: b1;
+      }
+
+      .b2 {
+        grid-area: b2;
+      }
+
+      .b3 {
+        grid-area: b3;
+      }
+
+      #chat textarea,
+      #chat input,
+      #chat button {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background-color: darkslategrey;
+        color: white;
+      }
+
+      #chat textarea {
+        resize: none;
+      }
+
+      #chat button {
+        background-color: #4caf50;
+        text-align: center;
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="a">
+      <div class="a1">
+        <div class="b" id="chat">
+          <div class="b1">
+            <textarea disabled="disabled"></textarea>
+          </div>
+          <div class="b2">
+            <input placeholder="Type your message here" type="text" />
+          </div>
+          <div class="b3">
+            <button>Send</button>
+          </div>
+        </div>
+      </div>
+      <div class="a2">
+        <canvas id="canvas"></canvas>
+      </div>
+    </div>
+    <script src="./socket.io/socket.io.js"></script>
+    <script src="./client.js"></script>
+  </body>
+</html>
