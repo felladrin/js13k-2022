@@ -33,6 +33,8 @@ const socketsConnected = new Map<string, Socket>();
 
 const gameStateUpdateMillisecondsInterval = 1000 / gameStateUpdatesPerSecond;
 
+const physicsUpdateMillisecondsInterval = 1000 / gameFramesPerSecond;
+
 const networkObjects = [] as NetworkObject[];
 
 const createNetworkObject = (properties?: Partial<NetworkObject>) => {
@@ -83,6 +85,7 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
 
 const handleSocketConnected = (socket: Socket) => {
   socket.data = createNetworkObject({ radius: letterCircleRadius });
+  socket.data.nickname = `Subject #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
   console.log("Connected: " + socket.id);
@@ -91,6 +94,12 @@ const handleSocketConnected = (socket: Socket) => {
 const handleSocketDisconnected = (socket: Socket) => {
   socketsConnected.delete(socket.id);
   console.log("Disconnected: " + socket.id);
+};
+
+const broadcastChatMessage = (message: string) => {
+  socketsConnected.forEach((targetSocket) => {
+    targetSocket.emit("chat", message);
+  });
 };
 
 const setupSocketListeners = (socket: Socket) => {
@@ -108,9 +117,12 @@ const setupSocketListeners = (socket: Socket) => {
     add(socket.data.acel, socket.data.acel, v2(0, 1));
   });
   socket.on("chat", (message: string) => {
-    socketsConnected.forEach((targetSocket) => {
-      targetSocket.emit("chat", `💬 ${targetSocket.id}: ${message}`);
-    });
+    broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
+  });
+  socket.on("nickname", (nickname) => {
+    const a = nickname.trim();
+    if (a.length) socket.data.nickname = nickname;
+    broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
   });
 };
 
@@ -147,7 +159,7 @@ const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
 
 const updatePhysics = () => {
   networkObjects.forEach((networkObject) => {
-    accelerate(networkObject, 1000 / gameFramesPerSecond);
+    accelerate(networkObject, physicsUpdateMillisecondsInterval);
 
     networkObjects
       .filter(
@@ -171,6 +183,6 @@ const emitGameStateToConnectedSockets = () => {
 
 subscribeToSocketDisconnected(handleSocketDisconnected);
 subscribeToSocketConnected(handleSocketConnected);
-setInterval(updatePhysics, 1000 / gameFramesPerSecond);
+setInterval(updatePhysics, physicsUpdateMillisecondsInterval);
 setInterval(emitGameStateToConnectedSockets, gameStateUpdateMillisecondsInterval);
 export default { io: publishSocketConnected };

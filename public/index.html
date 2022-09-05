@@ -17,16 +17,17 @@
         overflow: hidden;
         background-color: black;
         touch-action: none;
+        font-family: Verdana, Geneva, Tahoma, sans-serif;
       }
 
-      .a {
+      #a {
         display: grid;
         width: 100%;
         height: 100%;
       }
 
       @media (orientation: landscape) {
-        .a {
+        #a {
           grid-template-areas: "a1 a2";
           grid-template-columns: 250px 1fr;
         }
@@ -38,7 +39,7 @@
       }
 
       @media (orientation: portrait) {
-        .a {
+        #a {
           grid-template-areas:
             "a1"
             "a2";
@@ -51,15 +52,15 @@
         }
       }
 
-      .a1 {
+      #a1 {
         grid-area: a1;
       }
 
-      .a2 {
+      #a2 {
         grid-area: a2;
       }
 
-      .b {
+      #b {
         display: grid;
         width: 100%;
         height: 100%;
@@ -70,21 +71,21 @@
         grid-template-rows: 1fr 32px;
       }
 
-      .b1 {
+      #b1 {
         grid-area: b1;
       }
 
-      .b2 {
+      #b2 {
         grid-area: b2;
       }
 
-      .b3 {
+      #b3 {
         grid-area: b3;
       }
 
-      #chat textarea,
-      #chat input,
-      #chat button {
+      #b textarea,
+      #b input,
+      #b button {
         width: 100%;
         height: 100%;
         border: none;
@@ -92,35 +93,52 @@
         color: white;
       }
 
-      #chat textarea {
+      #b textarea {
         resize: none;
       }
 
-      #chat button {
+      #b button {
         background-color: #4caf50;
         text-align: center;
         display: inline-block;
       }
+
+      #z {
+        position: absolute;
+        width: 400px;
+        height: 300px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: #10120c;
+        color: white;
+      }
     </style>
   </head>
   <body>
-    <div class="a">
-      <div class="a1">
-        <div class="b" id="chat">
-          <div class="b1">
+    <div id="a">
+      <div id="a1">
+        <div id="b">
+          <div id="b1">
             <textarea disabled="disabled"></textarea>
           </div>
-          <div class="b2">
+          <div id="b2">
             <input placeholder="Type your message here" type="text" />
           </div>
-          <div class="b3">
+          <div id="b3">
             <button>Send</button>
           </div>
         </div>
       </div>
-      <div class="a2">
+      <div id="a2">
         <canvas id="canvas"></canvas>
       </div>
+    </div>
+    <div id="z">
+      <p>
+        <input placeholder="Your nickname" type="text" />
+        <button>Join</button>
+      </p>
     </div>
     <script src="./socket.io/socket.io.js"></script>
     <script src="./client.js"></script>

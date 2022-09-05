@@ -19,13 +19,17 @@ const networkObjectIdToSpriteMap = new Map<number, Text>();
 
 const { canvas } = init(document.querySelector("#canvas") as HTMLCanvasElement);
 
-const chatDiv = document.querySelector("#chat") as HTMLDivElement;
+const chatHistory = document.querySelector("#b textarea") as HTMLTextAreaElement;
 
-const chatHistory = chatDiv.querySelector("textarea") as HTMLTextAreaElement;
+const chatInputField = document.querySelector("#b input") as HTMLInputElement;
 
-const chatInputField = chatDiv.querySelector("input") as HTMLInputElement;
+const chatButton = document.querySelector("#b button") as HTMLButtonElement;
 
-const chatButton = chatDiv.querySelector("button") as HTMLButtonElement;
+const welcomePanel = document.querySelector("#z") as HTMLDivElement;
+
+const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
+
+const joinButton = welcomePanel.querySelector("button") as HTMLButtonElement;
 
 const socket = io({ upgrade: false, transports: ["websocket"] });
 
@@ -222,6 +226,11 @@ const handleChatInputFieldFocused = () => setArrowKeysListenersEnabled(false);
 
 const handleChatInputFieldBlurred = () => setArrowKeysListenersEnabled(true);
 
+const handleJoinButtonClicked = () => {
+  socket.emit("nickname", chosenNickname.value.trim());
+  welcomePanel.remove();
+};
+
 subscribeToGameStateUpdated(handleGameStateUpdated);
 subscribeToMainLoopUpdate(updateScene);
 subscribeToMainLoopDraw(renderScene);
@@ -233,5 +242,6 @@ chatButton.addEventListener("click", sendChatMessage);
 chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
 chatInputField.addEventListener("focus", handleChatInputFieldFocused);
 chatInputField.addEventListener("blur", handleChatInputFieldBlurred);
+joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on("chat", handleChatMessageReceived);
 socket.on("gameState", publishGameStateUpdated);
