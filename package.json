@@ -6,21 +6,29 @@
   "scripts": {
     "start": "npm run build && cd js13kserver && node index.js",
     "dev": "npm run build && npm-run-all --parallel --race rollup-watch nodemon",
-    "build": "npm-run-all --sequential download-game-server clear-public-folder rollup-build",
+    "build": "npm-run-all --sequential download-game-server clear-public-folder rollup-build minify-html zip",
     "nodemon": "cd js13kserver && npx nodemon",
     "rollup-build": "rollup -c",
     "rollup-watch": "rollup -c -w",
     "download-game-server": "ts-node package-scripts/downloadGameServer",
-    "clear-public-folder": "del js13kserver/public"
+    "zip": "ts-node package-scripts/zip.ts",
+    "clear-public-folder": "del js13kserver/public",
+    "minify-html": "html-minifier --collapse-whitespace --remove-comments --remove-optional-tags --remove-redundant-attributes --remove-script-type-attributes --use-short-doctype --minify-css true --minify-js true public/index.html > js13kserver/public/index.html"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^22.0.2",
     "@rollup/plugin-node-resolve": "^13.3.0",
     "@rollup/plugin-typescript": "^8.3.4",
+    "@types/archiver": "^5.3.1",
     "@types/download": "^8.0.1",
+    "archiver": "^5.3.1",
+    "colorette": "^2.0.19",
     "create-pubsub": "^1.4.0",
+    "cross-exec-file": "^2.0.0",
     "del-cli": "^5.0.0",
     "download": "^8.0.0",
+    "ect-bin": "^1.4.1",
+    "html-minifier": "^4.0.0",
     "kontra": "^8.0.0",
     "npm-run-all": "^4.1.5",
     "pocket-physics": "^10.1.1",
@@ -30,8 +38,10 @@
     "rollup-plugin-watch": "^1.0.1",
     "socket.io": "^4.5.1",
     "socket.io-client": "^4.5.1",
+    "tasuku": "^2.0.0",
     "ts-node": "^10.9.1",
     "tslib": "^2.4.0",
-    "typescript": "^4.7.4"
+    "typescript": "^4.7.4",
+    "zipstats": "^1.1.0"
   }
 }
