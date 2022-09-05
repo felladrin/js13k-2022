@@ -1,18 +1,19 @@
 import { createPubSub } from "create-pubsub";
-import { init, GameLoop, Vector, initKeys, onKey, Text, offKey } from "kontra";
+import { init, GameLoop, Vector, initKeys, onKey, Text, offKey, Sprite } from "kontra";
 import {
+  canvasBottomRightPoint,
+  canvasTopLeftPoint,
   GameState,
   gameStateUpdatesPerSecond,
   letterCircleRadius,
   NetworkObject,
   squareCanvasSizeInPixels,
+  gameFramesPerSecond,
 } from "./shared";
 
 declare let io: typeof import("socket.io-client").io;
 
-const clientFps = 60;
-
-const gameStateUpdateFramesInterval = clientFps / gameStateUpdatesPerSecond;
+const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
 
 const networkObjectIdToSpriteMap = new Map<number, Text>();
 
@@ -67,6 +68,45 @@ const Letter = {
   Z: "🅩",
 };
 
+const canvasBordersColor = "darkslategrey";
+
+const canvasBorderThickness = 3;
+
+const canvasBorderSprites = [
+  Sprite({
+    x: canvasTopLeftPoint.x,
+    y: canvasTopLeftPoint.y,
+    anchor: { x: 0, y: 0 },
+    width: squareCanvasSizeInPixels,
+    height: canvasBorderThickness,
+    color: canvasBordersColor,
+  }),
+  Sprite({
+    x: canvasTopLeftPoint.x,
+    y: canvasTopLeftPoint.y,
+    anchor: { x: 0, y: 0 },
+    width: canvasBorderThickness,
+    height: squareCanvasSizeInPixels,
+    color: canvasBordersColor,
+  }),
+  Sprite({
+    x: canvasBottomRightPoint.x,
+    y: canvasBottomRightPoint.y,
+    anchor: { x: 1, y: 1 },
+    width: squareCanvasSizeInPixels,
+    height: canvasBorderThickness,
+    color: canvasBordersColor,
+  }),
+  Sprite({
+    x: canvasBottomRightPoint.x,
+    y: canvasBottomRightPoint.y,
+    anchor: { x: 1, y: 1 },
+    width: canvasBorderThickness,
+    height: squareCanvasSizeInPixels,
+    color: canvasBordersColor,
+  }),
+];
+
 const setCanvasWidthAndHeight = () => {
   canvas.width = canvas.height = squareCanvasSizeInPixels;
 };
@@ -99,10 +139,12 @@ const renderScene = () => {
   getGameState()?.networkObjects.forEach((networkObject) => {
     networkObjectIdToSpriteMap.get(networkObject.id)?.render();
   });
+
+  canvasBorderSprites.forEach((sprite) => sprite.render());
 };
 
 const startMainLoop = () => {
-  GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw, fps: clientFps }).start();
+  GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw, fps: gameFramesPerSecond }).start();
 };
 
 const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
@@ -123,7 +165,7 @@ const handleGameStateUpdated = (gameState: GameState) => {
     let sprite = networkObjectIdToSpriteMap.get(networkObject.id) ?? createSpriteForNetworkObject(networkObject);
     const expectedPosition = Vector(networkObject.cpos.x, networkObject.cpos.y);
     Math.abs(expectedPosition.distance(sprite.position)) > 1
-      ? setSpriteSpeed(expectedPosition, sprite)
+      ? setSpriteVelocity(expectedPosition, sprite)
       : stopSprite(sprite);
   });
 };
@@ -142,7 +184,7 @@ const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
   return sprite;
 };
 
-const setSpriteSpeed = (expectedPosition: Vector, sprite: Text) => {
+const setSpriteVelocity = (expectedPosition: Vector, sprite: Text) => {
   const difference = expectedPosition.subtract(sprite.position);
   sprite.dx = difference.x / gameStateUpdateFramesInterval;
   sprite.dy = difference.y / gameStateUpdateFramesInterval;

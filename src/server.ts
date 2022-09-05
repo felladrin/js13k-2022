@@ -2,14 +2,26 @@ import type { Socket } from "socket.io";
 import { createPubSub } from "create-pubsub";
 import {
   accelerate,
+  add,
   collideCircleCircle,
   collideCircleEdge,
   inertia,
   overlapCircleCircle,
   rewindToCollisionPoint,
+  v2,
   Vector2,
 } from "pocket-physics";
-import { NetworkObject, gameStateUpdatesPerSecond, squareCanvasSizeInPixels } from "./shared";
+import {
+  NetworkObject,
+  gameStateUpdatesPerSecond,
+  squareCanvasSizeInPixels,
+  canvasTopLeftPoint,
+  canvasTopRightPoint,
+  canvasBottomRightPoint,
+  canvasBottomLeftPoint,
+  letterCircleRadius,
+  gameFramesPerSecond,
+} from "./shared";
 
 const [publishSocketConnected, subscribeToSocketConnected] = createPubSub<Socket>();
 
@@ -22,11 +34,6 @@ const socketsConnected = new Map<string, Socket>();
 const gameStateUpdateMillisecondsInterval = 1000 / gameStateUpdatesPerSecond;
 
 const networkObjects = [] as NetworkObject[];
-
-const topLeftPoint = { x: 0, y: 0 } as Vector2;
-const topRightPoint = { x: squareCanvasSizeInPixels, y: 0 } as Vector2;
-const bottomLeftPoint = { x: 0, y: squareCanvasSizeInPixels } as Vector2;
-const bottomRightPoint = { x: squareCanvasSizeInPixels, y: squareCanvasSizeInPixels } as Vector2;
 
 const createNetworkObject = (properties?: Partial<NetworkObject>) => {
   const id = getNextGameObjectId();
@@ -69,13 +76,13 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
     secondObject,
     secondObject.radius,
     secondObject.mass,
-    false,
+    true,
     0.9
   );
 };
 
 const handleSocketConnected = (socket: Socket) => {
-  socket.data = createNetworkObject();
+  socket.data = createNetworkObject({ radius: letterCircleRadius });
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
   console.log("Connected: " + socket.id);
@@ -89,16 +96,16 @@ const handleSocketDisconnected = (socket: Socket) => {
 const setupSocketListeners = (socket: Socket) => {
   socket.on("disconnect", () => publishSocketDisconnected(socket));
   socket.on("arrowleft", () => {
-    socket.data.acel.x += -0.1;
+    add(socket.data.acel, socket.data.acel, v2(-1));
   });
   socket.on("arrowright", () => {
-    socket.data.acel.x += 0.1;
+    add(socket.data.acel, socket.data.acel, v2(1));
   });
   socket.on("arrowup", () => {
-    socket.data.acel.y += -0.1;
+    add(socket.data.acel, socket.data.acel, v2(0, -1));
   });
   socket.on("arrowdown", () => {
-    socket.data.acel.y += 0.1;
+    add(socket.data.acel, socket.data.acel, v2(0, 1));
   });
   socket.on("chat", (message: string) => {
     socketsConnected.forEach((targetSocket) => {
@@ -107,11 +114,40 @@ const setupSocketListeners = (socket: Socket) => {
   });
 };
 
-const processServerTick = () => {
-  if (socketsConnected.size == 0) return;
+const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
+  const pointsFromCanvasEdges = [
+    [canvasTopLeftPoint, canvasTopRightPoint],
+    [canvasTopRightPoint, canvasBottomRightPoint],
+    [canvasBottomRightPoint, canvasBottomLeftPoint],
+    [canvasBottomLeftPoint, canvasTopLeftPoint],
+  ] as [pointA: Vector2, pointB: Vector2][];
 
+  pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
+    if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
+      collideCircleEdge(
+        networkObject,
+        networkObject.radius,
+        networkObject.mass,
+        {
+          cpos: pointA,
+          ppos: pointA,
+        },
+        -1,
+        {
+          cpos: pointB,
+          ppos: pointB,
+        },
+        -1,
+        true,
+        0.9
+      );
+    }
+  });
+};
+
+const updatePhysics = () => {
   networkObjects.forEach((networkObject) => {
-    accelerate(networkObject, gameStateUpdateMillisecondsInterval);
+    accelerate(networkObject, 1000 / gameFramesPerSecond);
 
     networkObjects
       .filter(
@@ -121,89 +157,13 @@ const processServerTick = () => {
         handleCollision(networkObject, otherNetworkObject);
       });
 
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, topLeftPoint, topRightPoint)) {
-      collideCircleEdge(
-        networkObject,
-        networkObject.radius,
-        networkObject.mass,
-        {
-          cpos: topLeftPoint,
-          ppos: topLeftPoint,
-        },
-        -1,
-        {
-          cpos: topRightPoint,
-          ppos: topRightPoint,
-        },
-        -1,
-        true,
-        0.9
-      );
-    }
-
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, topRightPoint, bottomRightPoint)) {
-      collideCircleEdge(
-        networkObject,
-        networkObject.radius,
-        networkObject.mass,
-        {
-          cpos: topRightPoint,
-          ppos: topRightPoint,
-        },
-        -1,
-        {
-          cpos: bottomRightPoint,
-          ppos: bottomRightPoint,
-        },
-        -1,
-        true,
-        0.9
-      );
-    }
-
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, bottomRightPoint, bottomLeftPoint)) {
-      collideCircleEdge(
-        networkObject,
-        networkObject.radius,
-        networkObject.mass,
-        {
-          cpos: bottomRightPoint,
-          ppos: bottomRightPoint,
-        },
-        -1,
-        {
-          cpos: bottomLeftPoint,
-          ppos: bottomLeftPoint,
-        },
-        -1,
-        true,
-        0.9
-      );
-    }
-
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, bottomLeftPoint, topLeftPoint)) {
-      collideCircleEdge(
-        networkObject,
-        networkObject.radius,
-        networkObject.mass,
-        {
-          cpos: bottomLeftPoint,
-          ppos: bottomLeftPoint,
-        },
-        -1,
-        {
-          cpos: topLeftPoint,
-          ppos: topLeftPoint,
-        },
-        -1,
-        true,
-        0.9
-      );
-    }
+    checkCollisionWithCanvasEdges(networkObject);
 
     inertia(networkObject);
   });
+};
 
+const emitGameStateToConnectedSockets = () => {
   socketsConnected.forEach((socket) => {
     socket.emit("gameState", { networkObjects });
   });
@@ -211,5 +171,6 @@ const processServerTick = () => {
 
 subscribeToSocketDisconnected(handleSocketDisconnected);
 subscribeToSocketConnected(handleSocketConnected);
-setInterval(processServerTick, gameStateUpdateMillisecondsInterval);
+setInterval(updatePhysics, 1000 / gameFramesPerSecond);
+setInterval(emitGameStateToConnectedSockets, gameStateUpdateMillisecondsInterval);
 export default { io: publishSocketConnected };
