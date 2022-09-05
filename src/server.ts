@@ -6,8 +6,10 @@ import {
   collideCircleCircle,
   collideCircleEdge,
   inertia,
+  normalize,
   overlapCircleCircle,
   rewindToCollisionPoint,
+  sub,
   v2,
   Vector2,
 } from "pocket-physics";
@@ -34,6 +36,8 @@ const socketsConnected = new Map<string, Socket>();
 const gameStateUpdateMillisecondsInterval = 1000 / gameStateUpdatesPerSecond;
 
 const physicsUpdateMillisecondsInterval = 1000 / gameFramesPerSecond;
+
+const massOfImmovableObjects = -1;
 
 const networkObjects = [] as NetworkObject[];
 
@@ -84,7 +88,7 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
 };
 
 const handleSocketConnected = (socket: Socket) => {
-  socket.data = createNetworkObject({ radius: letterCircleRadius });
+  socket.data = createNetworkObject({ radius: letterCircleRadius, ownerSocketId: socket.id });
   socket.data.nickname = `Subject #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
@@ -93,6 +97,7 @@ const handleSocketConnected = (socket: Socket) => {
 
 const handleSocketDisconnected = (socket: Socket) => {
   socketsConnected.delete(socket.id);
+  broadcastChatMessage(`📢 ${socket.data.nickname} is gone!`);
   console.log("Disconnected: " + socket.id);
 };
 
@@ -104,25 +109,19 @@ const broadcastChatMessage = (message: string) => {
 
 const setupSocketListeners = (socket: Socket) => {
   socket.on("disconnect", () => publishSocketDisconnected(socket));
-  socket.on("arrowleft", () => {
-    add(socket.data.acel, socket.data.acel, v2(-1));
-  });
-  socket.on("arrowright", () => {
-    add(socket.data.acel, socket.data.acel, v2(1));
-  });
-  socket.on("arrowup", () => {
-    add(socket.data.acel, socket.data.acel, v2(0, -1));
-  });
-  socket.on("arrowdown", () => {
-    add(socket.data.acel, socket.data.acel, v2(0, 1));
-  });
   socket.on("chat", (message: string) => {
     broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
   });
   socket.on("nickname", (nickname) => {
-    const a = nickname.trim();
-    if (a.length) socket.data.nickname = nickname;
+    const trimmedNickname = nickname.trim();
+    if (trimmedNickname.length) socket.data.nickname = trimmedNickname;
     broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
+  });
+  socket.on("pointerPressed", ([x, y]: [x: number, y: number]) => {
+    const accelerationVector = v2();
+    sub(accelerationVector, v2(x, y), socket.data.cpos);
+    normalize(accelerationVector, accelerationVector);
+    add(socket.data.acel, socket.data.acel, accelerationVector);
   });
 };
 
@@ -144,12 +143,12 @@ const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
           cpos: pointA,
           ppos: pointA,
         },
-        -1,
+        massOfImmovableObjects,
         {
           cpos: pointB,
           ppos: pointB,
         },
-        -1,
+        massOfImmovableObjects,
         true,
         0.9
       );

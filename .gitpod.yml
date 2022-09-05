@@ -5,5 +5,5 @@ ports:
   - name: Dev Server
     description: For running the game during development.
     port: 3000
-    visibility: private
+    visibility: public
     onOpen: open-preview

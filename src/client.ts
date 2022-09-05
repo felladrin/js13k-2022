@@ -1,5 +1,5 @@
 import { createPubSub } from "create-pubsub";
-import { init, GameLoop, Vector, initKeys, onKey, Text, offKey, Sprite } from "kontra";
+import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointer } from "kontra";
 import {
   canvasBottomRightPoint,
   canvasTopLeftPoint,
@@ -17,7 +17,7 @@ const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerS
 
 const networkObjectIdToSpriteMap = new Map<number, Text>();
 
-const { canvas } = init(document.querySelector("#canvas") as HTMLCanvasElement);
+const { canvas, context } = init(document.querySelector("#canvas") as HTMLCanvasElement);
 
 const chatHistory = document.querySelector("#b textarea") as HTMLTextAreaElement;
 
@@ -42,6 +42,10 @@ const [publishPageWithImagesLoaded, subscribeToPageWithImagesLoaded] = createPub
 const [publishGamePreparationComplete, subscribeToGamePreparationCompleted] = createPubSub();
 
 const [publishGameStateUpdated, subscribeToGameStateUpdated, getGameState] = createPubSub<GameState>();
+
+const [publishPointerPressed, , isPointerPressed] = createPubSub(false);
+
+const [publishLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed] = createPubSub(Date.now());
 
 const Letter = {
   A: "🅐",
@@ -117,31 +121,43 @@ const setCanvasWidthAndHeight = () => {
 
 const prepareGame = () => {
   setCanvasWidthAndHeight();
-  fitCanvasInsideItsParent(canvas);
-  setupKeyboardHandler();
+  handleWindowResized();
+  initPointer({ radius: 0 });
   publishGamePreparationComplete();
 };
 
-const setArrowKeysListenersEnabled = (enabled: boolean) => {
-  ["arrowleft", "arrowright", "arrowup", "arrowdown"].forEach((keyName) => {
-    enabled ? onKey(keyName, () => socket.emit(keyName)) : offKey(keyName);
-  });
-};
-
-const setupKeyboardHandler = () => {
-  initKeys();
-  setArrowKeysListenersEnabled(true);
+const emitPointerPressedIfNeeded = () => {
+  if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / gameStateUpdatesPerSecond) return;
+  const { x, y } = getPointer();
+  socket.emit("pointerPressed", [x, y]);
+  publishLastTimeEmittedPointerPressed(Date.now());
 };
 
 const updateScene = () => {
+  emitPointerPressedIfNeeded();
+
   getGameState()?.networkObjects.forEach((networkObject) => {
     networkObjectIdToSpriteMap.get(networkObject.id)?.update();
   });
 };
 
+const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: number }) => {
+  context.beginPath();
+  context.strokeStyle = "white";
+  context.moveTo(fromPoint.x, fromPoint.y);
+  context.lineTo(toPoint.x, toPoint.y);
+  context.stroke();
+};
+
 const renderScene = () => {
   getGameState()?.networkObjects.forEach((networkObject) => {
-    networkObjectIdToSpriteMap.get(networkObject.id)?.render();
+    const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
+
+    if (isPointerPressed() && networkObject.ownerSocketId === socket.id && sprite) {
+      drawLine(sprite.position, getPointer());
+    }
+
+    sprite?.render();
   });
 
   canvasBorderSprites.forEach((sprite) => sprite.render());
@@ -220,11 +236,14 @@ const handleKeyPressedOnChatInputField = (event: KeyboardEvent) => {
   if (event.key === "Enter") sendChatMessage();
 };
 
-const handleWindowResized = () => fitCanvasInsideItsParent(canvas);
+const adjustAppHeight = () => {
+  document.documentElement.style.setProperty("--inner-height", `${window.innerHeight}px`);
+};
 
-const handleChatInputFieldFocused = () => setArrowKeysListenersEnabled(false);
-
-const handleChatInputFieldBlurred = () => setArrowKeysListenersEnabled(true);
+const handleWindowResized = () => {
+  adjustAppHeight();
+  fitCanvasInsideItsParent(canvas);
+};
 
 const handleJoinButtonClicked = () => {
   socket.emit("nickname", chosenNickname.value.trim());
@@ -236,12 +255,12 @@ subscribeToMainLoopUpdate(updateScene);
 subscribeToMainLoopDraw(renderScene);
 subscribeToGamePreparationCompleted(startMainLoop);
 subscribeToPageWithImagesLoaded(prepareGame);
+onPointer("down", () => publishPointerPressed(true));
+onPointer("up", () => publishPointerPressed(false));
 window.addEventListener("load", publishPageWithImagesLoaded);
 window.addEventListener("resize", handleWindowResized);
 chatButton.addEventListener("click", sendChatMessage);
 chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
-chatInputField.addEventListener("focus", handleChatInputFieldFocused);
-chatInputField.addEventListener("blur", handleChatInputFieldBlurred);
 joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on("chat", handleChatMessageReceived);
 socket.on("gameState", publishGameStateUpdated);
