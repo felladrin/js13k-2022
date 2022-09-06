@@ -146,7 +146,7 @@ const setupSocketListeners = (socket: ServerSocket) => {
     const accelerationVector = v2();
     sub(accelerationVector, v2(x, y), socket.data.cpos);
     normalize(accelerationVector, accelerationVector);
-    const elasticityFactor = 1 + distance(v2(x, y), socket.data.cpos) / (squareCanvasSizeInPixels / 2);
+    const elasticityFactor = 20 * (distance(v2(x, y), socket.data.cpos) / squareCanvasSizeInPixels);
     scale(accelerationVector, accelerationVector, elasticityFactor);
     add(socket.data.acel, socket.data.acel, accelerationVector);
   });

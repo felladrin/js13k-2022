@@ -1,5 +1,5 @@
 import { createPubSub } from "create-pubsub";
-import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointer } from "kontra";
+import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointer, degToRad, radToDeg } from "kontra";
 import { Socket } from "socket.io-client";
 import { zzfx } from "zzfx";
 import {
@@ -7,7 +7,6 @@ import {
   canvasTopLeftPoint,
   GameState,
   gameStateUpdatesPerSecond,
-  letterCircleRadius,
   NetworkObject,
   squareCanvasSizeInPixels,
   gameFramesPerSecond,
@@ -17,7 +16,7 @@ import {
 
 const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
 
-const networkObjectIdToSpriteMap = new Map<number, Text>();
+const networkObjectIdToSpriteMap = new Map<number, Sprite>();
 
 const { canvas, context } = init(document.querySelector("#canvas") as HTMLCanvasElement);
 
@@ -28,6 +27,8 @@ const chatInputField = document.querySelector("#b input") as HTMLInputElement;
 const chatButton = document.querySelector("#b button") as HTMLButtonElement;
 
 const welcomePanel = document.querySelector("#z") as HTMLDivElement;
+
+const vortexImage = document.querySelector("#y") as HTMLImageElement;
 
 const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
 
@@ -56,35 +57,6 @@ const collisionSound = [2.38, , 1458, 0.01, 0.01, 0.15, 1, 1.65, , , , , , , , 0
 const acceleratingSound = [, , 999, 0.2, 0.04, 0.15, 4, 2.66, -0.5, 22, , , , 0.1, , , , , 0.02];
 
 const screamSound = [1.71, , 727, 0.02, 0.03, 0, 3, 0.09, 4.4, -62, , , , , , , 0.19, 0.65, 0.2, 0.51];
-
-const Letter = {
-  A: "🅐",
-  B: "🅑",
-  C: "🅒",
-  D: "🅓",
-  E: "🅔",
-  F: "🅕",
-  G: "🅖",
-  H: "🅗",
-  I: "🅘",
-  J: "🅙",
-  K: "🅚",
-  L: "🅛",
-  M: "🅜",
-  N: "🅝",
-  O: "🅞",
-  P: "🅟",
-  Q: "🅠",
-  R: "🅡",
-  S: "🅢",
-  T: "🅣",
-  U: "🅤",
-  V: "🅥",
-  W: "🅦",
-  X: "🅧",
-  Y: "🅨",
-  Z: "🅩",
-};
 
 const canvasBordersColor = "darkslategrey";
 
@@ -147,13 +119,18 @@ const updateScene = () => {
   emitPointerPressedIfNeeded();
 
   getGameState()?.networkObjects.forEach((networkObject) => {
-    networkObjectIdToSpriteMap.get(networkObject.id)?.update();
+    const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
+    if (sprite) {
+      sprite.update();
+      const newRotationDegree = radToDeg(sprite.rotation) + 23;
+      sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
+    }
   });
 };
 
 const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: number }) => {
   context.beginPath();
-  context.strokeStyle = "white";
+  context.strokeStyle = "#315745";
   context.moveTo(fromPoint.x, fromPoint.y);
   context.lineTo(toPoint.x, toPoint.y);
   context.stroke();
@@ -201,26 +178,23 @@ const handleGameStateUpdated = (gameState: GameState) => {
 };
 
 const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
-  const sprite = Text({
-    text: Letter.K,
-    font: `${letterCircleRadius * 2}px Arial`,
+  const sprite = Sprite({
+    image: vortexImage,
+    x: 300,
+    y: 300,
     anchor: { x: 0.5, y: 0.5 },
-    textAlign: "center",
-    color: "white",
-    x: networkObject.ppos.x,
-    y: networkObject.ppos.y,
   });
   networkObjectIdToSpriteMap.set(networkObject.id, sprite);
   return sprite;
 };
 
-const setSpriteVelocity = (expectedPosition: Vector, sprite: Text) => {
+const setSpriteVelocity = (expectedPosition: Vector, sprite: Sprite) => {
   const difference = expectedPosition.subtract(sprite.position);
   sprite.dx = difference.x / gameStateUpdateFramesInterval;
   sprite.dy = difference.y / gameStateUpdateFramesInterval;
 };
 
-const stopSprite = (sprite: Text) => {
+const stopSprite = (sprite: Sprite) => {
   sprite.ddx = sprite.ddy = sprite.dx = sprite.dy = 0;
 };
 
