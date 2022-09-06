@@ -12,6 +12,8 @@ import {
   sub,
   v2,
   Vector2,
+  distance,
+  scale,
 } from "pocket-physics";
 import {
   NetworkObject,
@@ -85,6 +87,12 @@ const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) =>
 };
 
 const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject) => {
+  socketsConnected.forEach((targetSocket) => {
+    targetSocket.emit("collision", [
+      (firstObject.cpos.x + secondObject.cpos.x) / 2,
+      (firstObject.cpos.y + secondObject.cpos.y) / 2,
+    ]);
+  });
   return collideCircleCircle(
     firstObject,
     firstObject.radius,
@@ -138,6 +146,8 @@ const setupSocketListeners = (socket: ServerSocket) => {
     const accelerationVector = v2();
     sub(accelerationVector, v2(x, y), socket.data.cpos);
     normalize(accelerationVector, accelerationVector);
+    const elasticityFactor = 1 + distance(v2(x, y), socket.data.cpos) / (squareCanvasSizeInPixels / 2);
+    scale(accelerationVector, accelerationVector, elasticityFactor);
     add(socket.data.acel, socket.data.acel, accelerationVector);
   });
 };
@@ -152,6 +162,9 @@ const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
 
   pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
+      socketsConnected.forEach((targetSocket) => {
+        targetSocket.emit("collision", [networkObject.cpos.x / 2, networkObject.cpos.y / 2]);
+      });
       collideCircleEdge(
         networkObject,
         networkObject.radius,

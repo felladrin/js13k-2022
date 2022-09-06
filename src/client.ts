@@ -1,6 +1,7 @@
 import { createPubSub } from "create-pubsub";
 import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointer } from "kontra";
 import { Socket } from "socket.io-client";
+import { zzfx } from "zzfx";
 import {
   canvasBottomRightPoint,
   canvasTopLeftPoint,
@@ -13,8 +14,6 @@ import {
   ServerToClientEvents,
   ClientToServerEvents,
 } from "./shared";
-
-declare const io: typeof import("socket.io-client").io;
 
 const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
 
@@ -49,6 +48,14 @@ const [publishGameStateUpdated, subscribeToGameStateUpdated, getGameState] = cre
 const [publishPointerPressed, , isPointerPressed] = createPubSub(false);
 
 const [publishLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed] = createPubSub(Date.now());
+
+const messageReceivedSound = [2.01, , 773, 0.02, 0.01, 0.01, 1, 1.14, 44, -27, , , , , 0.9, , 0.18, 0.81, 0.01];
+
+const collisionSound = [2.38, , 1458, 0.01, 0.01, 0.15, 1, 1.65, , , , , , , , 0.1, 0.08, 0.53];
+
+const acceleratingSound = [, , 999, 0.2, 0.04, 0.15, 4, 2.66, -0.5, 22, , , , 0.1, , , , , 0.02];
+
+const screamSound = [1.71, , 727, 0.02, 0.03, 0, 3, 0.09, 4.4, -62, , , , , , , 0.19, 0.65, 0.2, 0.51];
 
 const Letter = {
   A: "🅐",
@@ -218,10 +225,9 @@ const stopSprite = (sprite: Text) => {
 };
 
 const handleChatMessageReceived = (message: string) => {
+  playSound(messageReceivedSound);
   chatHistory.value += `\n[${getHoursFromLocalTime()}:${getMinutesFromLocalTime()}] ${message}`;
-  if (chatHistory !== document.activeElement) {
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-  }
+  if (chatHistory !== document.activeElement) chatHistory.scrollTop = chatHistory.scrollHeight;
 };
 
 const getMinutesFromLocalTime = () => new Date().getMinutes().toString().padStart(2, "0");
@@ -253,18 +259,36 @@ const handleJoinButtonClicked = () => {
   welcomePanel.remove();
 };
 
+const [publishSoundEnabled, , isSoundEnabled] = createPubSub(false);
+
+const playSound = (sound: (number | undefined)[]) => {
+  if (isSoundEnabled()) zzfx(...sound);
+};
+
+const enableSounds = () => {
+  publishSoundEnabled(true);
+  playSound(messageReceivedSound);
+};
+
+const handlePointerDown = () => {
+  playSound(acceleratingSound);
+  publishPointerPressed(true);
+};
+
 subscribeToGameStateUpdated(handleGameStateUpdated);
 subscribeToMainLoopUpdate(updateScene);
 subscribeToMainLoopDraw(renderScene);
 subscribeToGamePreparationCompleted(startMainLoop);
 subscribeToPageWithImagesLoaded(prepareGame);
-onPointer("down", () => publishPointerPressed(true));
+onPointer("down", handlePointerDown);
 onPointer("up", () => publishPointerPressed(false));
 window.addEventListener("load", publishPageWithImagesLoaded);
 window.addEventListener("resize", handleWindowResized);
+window.addEventListener("click", enableSounds, { once: true });
 chatButton.addEventListener("click", sendChatMessage);
 chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
 joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on("chat", handleChatMessageReceived);
 socket.on("gameState", publishGameStateUpdated);
 socket.on("objectDeleted", networkObjectIdToSpriteMap.delete);
+socket.on("collision", () => playSound(collisionSound));

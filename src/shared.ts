@@ -25,6 +25,7 @@ export interface ServerToClientEvents {
   chat: (message: string) => void;
   gameState: (gameState: GameState) => void;
   objectDeleted: (id: number) => void;
+  collision: (coordinates: [x: number, y: number]) => void;
 }
 
 export interface ClientToServerEvents {
