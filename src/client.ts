@@ -1,5 +1,6 @@
 import { createPubSub } from "create-pubsub";
 import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointer } from "kontra";
+import { Socket } from "socket.io-client";
 import {
   canvasBottomRightPoint,
   canvasTopLeftPoint,
@@ -9,6 +10,8 @@ import {
   NetworkObject,
   squareCanvasSizeInPixels,
   gameFramesPerSecond,
+  ServerToClientEvents,
+  ClientToServerEvents,
 } from "./shared";
 
 declare let io: typeof import("socket.io-client").io;
@@ -31,7 +34,7 @@ const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
 
 const joinButton = welcomePanel.querySelector("button") as HTMLButtonElement;
 
-const socket = io({ upgrade: false, transports: ["websocket"] });
+const socket = io({ upgrade: false, transports: ["websocket"] }) as Socket<ServerToClientEvents, ClientToServerEvents>;
 
 const [publishMainLoopUpdate, subscribeToMainLoopUpdate] = createPubSub<number>();
 

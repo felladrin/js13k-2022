@@ -23,15 +23,25 @@ import {
   canvasBottomLeftPoint,
   letterCircleRadius,
   gameFramesPerSecond,
+  ClientToServerEvents,
+  ServerToClientEvents,
 } from "./shared";
+import { DefaultEventsMap } from "socket.io/dist/typed-events";
 
-const [publishSocketConnected, subscribeToSocketConnected] = createPubSub<Socket>();
+type SocketData = NetworkObject & {
+  nickname: string;
+  currentFloor: number;
+};
 
-const [publishSocketDisconnected, subscribeToSocketDisconnected] = createPubSub<Socket>();
+type ServerSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+
+const [publishSocketConnected, subscribeToSocketConnected] = createPubSub<ServerSocket>();
+
+const [publishSocketDisconnected, subscribeToSocketDisconnected] = createPubSub<ServerSocket>();
 
 const [setNextGameObjectId, , getNextGameObjectId] = createPubSub(0);
 
-const socketsConnected = new Map<string, Socket>();
+const socketsConnected = new Map<string, ServerSocket>();
 
 const gameStateUpdateMillisecondsInterval = 1000 / gameStateUpdatesPerSecond;
 
@@ -87,7 +97,7 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
   );
 };
 
-const handleSocketConnected = (socket: Socket) => {
+const handleSocketConnected = (socket: ServerSocket) => {
   socket.data = createNetworkObject({ radius: letterCircleRadius, ownerSocketId: socket.id });
   socket.data.nickname = `Subject #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
@@ -95,7 +105,7 @@ const handleSocketConnected = (socket: Socket) => {
   console.log("Connected: " + socket.id);
 };
 
-const handleSocketDisconnected = (socket: Socket) => {
+const handleSocketDisconnected = (socket: ServerSocket) => {
   socketsConnected.delete(socket.id);
   broadcastChatMessage(`📢 ${socket.data.nickname} is gone!`);
   console.log("Disconnected: " + socket.id);
@@ -107,7 +117,7 @@ const broadcastChatMessage = (message: string) => {
   });
 };
 
-const setupSocketListeners = (socket: Socket) => {
+const setupSocketListeners = (socket: ServerSocket) => {
   socket.on("disconnect", () => publishSocketDisconnected(socket));
   socket.on("chat", (message: string) => {
     broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
@@ -118,6 +128,7 @@ const setupSocketListeners = (socket: Socket) => {
     broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
   });
   socket.on("pointerPressed", ([x, y]: [x: number, y: number]) => {
+    if (!socket.data.cpos || !socket.data.acel) return;
     const accelerationVector = v2();
     sub(accelerationVector, v2(x, y), socket.data.cpos);
     normalize(accelerationVector, accelerationVector);

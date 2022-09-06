@@ -21,9 +21,15 @@ export type GameState = {
   networkObjects: NetworkObject[];
 };
 
-export interface PlayerProperties {
-  nickname: string;
-  currentFloor: number;
+export interface ServerToClientEvents {
+  chat: (message: string) => void;
+  gameState: (gameState: GameState) => void;
+}
+
+export interface ClientToServerEvents {
+  chat: (message: string) => void;
+  nickname: (nickname: string) => void;
+  pointerPressed: (coordinates: [x: number, y: number]) => void;
 }
 
 export const canvasTopLeftPoint = { x: 0, y: 0 };
