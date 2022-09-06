@@ -102,18 +102,24 @@ const handleSocketConnected = (socket: ServerSocket) => {
   socket.data.nickname = `Subject #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
-  console.log("Connected: " + socket.id);
 };
 
 const handleSocketDisconnected = (socket: ServerSocket) => {
-  socketsConnected.delete(socket.id);
+  if (socket.data.id) {
+    const id = socket.data.id;
+    const networkObjectIndex = networkObjects.findIndex((target) => target.id === id);
+    if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
+    socketsConnected.forEach((targetSocket) => {
+      targetSocket.emit("objectDeleted", id);
+    });
+  }
   broadcastChatMessage(`📢 ${socket.data.nickname} is gone!`);
-  console.log("Disconnected: " + socket.id);
+  socketsConnected.delete(socket.id);
 };
 
 const broadcastChatMessage = (message: string) => {
-  socketsConnected.forEach((targetSocket) => {
-    targetSocket.emit("chat", message);
+  socketsConnected.forEach((socket) => {
+    socket.emit("chat", message);
   });
 };
 

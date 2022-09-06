@@ -24,6 +24,7 @@ export type GameState = {
 export interface ServerToClientEvents {
   chat: (message: string) => void;
   gameState: (gameState: GameState) => void;
+  objectDeleted: (id: number) => void;
 }
 
 export interface ClientToServerEvents {

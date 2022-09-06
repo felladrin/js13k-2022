@@ -14,7 +14,7 @@ import {
   ClientToServerEvents,
 } from "./shared";
 
-declare let io: typeof import("socket.io-client").io;
+declare const io: typeof import("socket.io-client").io;
 
 const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
 
@@ -239,12 +239,12 @@ const handleKeyPressedOnChatInputField = (event: KeyboardEvent) => {
   if (event.key === "Enter") sendChatMessage();
 };
 
-const adjustAppHeight = () => {
+const updateInnerHeightProperty = () => {
   document.documentElement.style.setProperty("--inner-height", `${window.innerHeight}px`);
 };
 
 const handleWindowResized = () => {
-  adjustAppHeight();
+  updateInnerHeightProperty();
   fitCanvasInsideItsParent(canvas);
 };
 
@@ -267,3 +267,4 @@ chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
 joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on("chat", handleChatMessageReceived);
 socket.on("gameState", publishGameStateUpdated);
+socket.on("objectDeleted", networkObjectIdToSpriteMap.delete);
