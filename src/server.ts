@@ -1,4 +1,5 @@
 import type { Socket } from "socket.io";
+import type { DefaultEventsMap } from "socket.io/dist/typed-events";
 import { createPubSub } from "create-pubsub";
 import {
   accelerate,
@@ -14,6 +15,7 @@ import {
   Vector2,
   distance,
   scale,
+  copy,
 } from "pocket-physics";
 import {
   NetworkObject,
@@ -24,11 +26,10 @@ import {
   ClientToServerEvents,
   ServerToClientEvents,
 } from "./shared";
-import { DefaultEventsMap } from "socket.io/dist/typed-events";
 
 type SocketData = NetworkObject & {
   nickname: string;
-  currentFloor: number;
+  score: number;
 };
 
 type ServerSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -51,20 +52,31 @@ const networkObjects = [] as NetworkObject[];
 
 const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00", "#1f952f", "#550000", "#1a191e"];
 
+const cornerPocketSize = 100;
+
 const tablePadding = 64;
-const playableAreaTopLeftPoint = { x: tablePadding, y: tablePadding };
-const playableAreaTopRightPoint = {
-  x: squareCanvasSizeInPixels - tablePadding,
-  y: tablePadding,
-};
-const playableAreaBottomLeftPoint = {
-  x: tablePadding,
-  y: squareCanvasSizeInPixels - tablePadding,
-};
-const playableAreaBottomRightPoint = {
-  x: squareCanvasSizeInPixels - tablePadding,
-  y: squareCanvasSizeInPixels - tablePadding,
-};
+
+const tableLeftRailPoints = [
+  v2(tablePadding, cornerPocketSize),
+  v2(tablePadding, squareCanvasSizeInPixels - cornerPocketSize),
+] as [Vector2, Vector2];
+
+const tableRightRailPoints = [
+  v2(squareCanvasSizeInPixels - tablePadding, cornerPocketSize),
+  v2(squareCanvasSizeInPixels - tablePadding, squareCanvasSizeInPixels - cornerPocketSize),
+] as [Vector2, Vector2];
+
+const tableTopRailPoints = [
+  v2(cornerPocketSize, tablePadding),
+  v2(squareCanvasSizeInPixels - cornerPocketSize, tablePadding),
+] as [Vector2, Vector2];
+
+const tableBottomRailPoints = [
+  v2(cornerPocketSize, squareCanvasSizeInPixels - tablePadding),
+  v2(squareCanvasSizeInPixels - cornerPocketSize, squareCanvasSizeInPixels - tablePadding),
+] as [Vector2, Vector2];
+
+const tableRails = [tableLeftRailPoints, tableRightRailPoints, tableTopRailPoints, tableBottomRailPoints];
 
 const getRandomElementFrom = (object: any[] | string) => object[Math.floor(Math.random() * object.length)];
 
@@ -122,8 +134,8 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
 const handleSocketConnected = (socket: ServerSocket) => {
   const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
   socket.data = createNetworkObject({
-    cpos: { x: randomPosition.x, y: randomPosition.y },
-    ppos: { x: randomPosition.x, y: randomPosition.y },
+    cpos: copy(v2(), randomPosition),
+    ppos: copy(v2(), randomPosition),
     radius: ballRadius,
     ownerSocketId: socket.id,
     color: getRandomHexColor(),
@@ -142,7 +154,7 @@ const handleSocketDisconnected = (socket: ServerSocket) => {
       targetSocket.emit("objectDeleted", id);
     });
   }
-  broadcastChatMessage(`📢 ${socket.data.nickname} is gone!`);
+  broadcastChatMessage(`📢 ${socket.data.nickname} left.`);
   socketsConnected.delete(socket.id);
 };
 
@@ -174,15 +186,8 @@ const setupSocketListeners = (socket: ServerSocket) => {
 };
 
 const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
-  const pointsFromCanvasEdges = [
-    [playableAreaTopLeftPoint, playableAreaTopRightPoint],
-    [playableAreaTopRightPoint, playableAreaBottomRightPoint],
-    [playableAreaBottomRightPoint, playableAreaBottomLeftPoint],
-    [playableAreaBottomLeftPoint, playableAreaTopLeftPoint],
-  ] as [pointA: Vector2, pointB: Vector2][];
-
-  pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
+  tableRails.forEach(([pointA, pointB]) => {
+    if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB))
       collideCircleEdge(
         networkObject,
         networkObject.radius,
@@ -200,7 +205,6 @@ const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
         true,
         0.9
       );
-    }
   });
 };
 
@@ -212,9 +216,7 @@ const updatePhysics = () => {
       .filter(
         (otherNetworkObject) => networkObject !== otherNetworkObject && isColliding(networkObject, otherNetworkObject)
       )
-      .forEach((otherNetworkObject) => {
-        handleCollision(networkObject, otherNetworkObject);
-      });
+      .forEach((otherNetworkObject) => handleCollision(networkObject, otherNetworkObject));
 
     checkCollisionWithTableEdges(networkObject);
 
@@ -238,8 +240,8 @@ const getRandomHexColor = () => {
 for (let value = 1; value <= 8; value++) {
   const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
   createNetworkObject({
-    cpos: { x: randomPosition.x, y: randomPosition.y },
-    ppos: { x: randomPosition.x, y: randomPosition.y },
+    cpos: copy(v2(), randomPosition),
+    ppos: copy(v2(), randomPosition),
     radius: ballRadius,
     value,
     label: `${value}`,
