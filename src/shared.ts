@@ -4,16 +4,14 @@ export const gameStateUpdatesPerSecond = 4;
 
 export const gameFramesPerSecond = 60;
 
-export const letterCircleRadius = 16;
+export const ballRadius = 7;
 
-export const squareCanvasSizeInPixels = 1024;
+export const squareCanvasSizeInPixels = 680;
 
 export type NetworkObject = Integratable & {
   id: number;
   radius: number;
   mass: number;
-  width: number;
-  height: number;
   ownerSocketId: string;
 };
 
@@ -25,7 +23,7 @@ export interface ServerToClientEvents {
   chat: (message: string) => void;
   gameState: (gameState: GameState) => void;
   objectDeleted: (id: number) => void;
-  collision: (coordinates: [x: number, y: number]) => void;
+  collision: () => void;
 }
 
 export interface ClientToServerEvents {
@@ -34,7 +32,17 @@ export interface ClientToServerEvents {
   pointerPressed: (coordinates: [x: number, y: number]) => void;
 }
 
-export const canvasTopLeftPoint = { x: 0, y: 0 };
-export const canvasTopRightPoint = { x: squareCanvasSizeInPixels, y: 0 };
-export const canvasBottomLeftPoint = { x: 0, y: squareCanvasSizeInPixels };
-export const canvasBottomRightPoint = { x: squareCanvasSizeInPixels, y: squareCanvasSizeInPixels };
+export const canvasBackgroundPadding = 64;
+export const canvasTopLeftPoint = { x: canvasBackgroundPadding, y: canvasBackgroundPadding };
+export const canvasTopRightPoint = {
+  x: squareCanvasSizeInPixels - canvasBackgroundPadding,
+  y: canvasBackgroundPadding,
+};
+export const canvasBottomLeftPoint = {
+  x: canvasBackgroundPadding,
+  y: squareCanvasSizeInPixels - canvasBackgroundPadding,
+};
+export const canvasBottomRightPoint = {
+  x: squareCanvasSizeInPixels - canvasBackgroundPadding,
+  y: squareCanvasSizeInPixels - canvasBackgroundPadding,
+};

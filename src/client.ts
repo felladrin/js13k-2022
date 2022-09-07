@@ -12,6 +12,7 @@ import {
   gameFramesPerSecond,
   ServerToClientEvents,
   ClientToServerEvents,
+  ballRadius,
 } from "./shared";
 
 const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
@@ -28,7 +29,23 @@ const chatButton = document.querySelector("#b button") as HTMLButtonElement;
 
 const welcomePanel = document.querySelector("#z") as HTMLDivElement;
 
-const vortexImage = document.querySelector("#y") as HTMLImageElement;
+const tableImage = document.querySelector("#i0") as HTMLImageElement;
+
+const ball1Image = document.querySelector("#i1") as HTMLImageElement;
+
+const ball2Image = document.querySelector("#i2") as HTMLImageElement;
+
+const ball3Image = document.querySelector("#i3") as HTMLImageElement;
+
+const ball4Image = document.querySelector("#i4") as HTMLImageElement;
+
+const ball5Image = document.querySelector("#i5") as HTMLImageElement;
+
+const ball6Image = document.querySelector("#i6") as HTMLImageElement;
+
+const ball7Image = document.querySelector("#i7") as HTMLImageElement;
+
+const ball8Image = document.querySelector("#i8") as HTMLImageElement;
 
 const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
 
@@ -58,44 +75,9 @@ const acceleratingSound = [, , 999, 0.2, 0.04, 0.15, 4, 2.66, -0.5, 22, , , , 0.
 
 const screamSound = [1.71, , 727, 0.02, 0.03, 0, 3, 0.09, 4.4, -62, , , , , , , 0.19, 0.65, 0.2, 0.51];
 
-const canvasBordersColor = "darkslategrey";
-
-const canvasBorderThickness = 3;
-
-const canvasBorderSprites = [
-  Sprite({
-    x: canvasTopLeftPoint.x,
-    y: canvasTopLeftPoint.y,
-    anchor: { x: 0, y: 0 },
-    width: squareCanvasSizeInPixels,
-    height: canvasBorderThickness,
-    color: canvasBordersColor,
-  }),
-  Sprite({
-    x: canvasTopLeftPoint.x,
-    y: canvasTopLeftPoint.y,
-    anchor: { x: 0, y: 0 },
-    width: canvasBorderThickness,
-    height: squareCanvasSizeInPixels,
-    color: canvasBordersColor,
-  }),
-  Sprite({
-    x: canvasBottomRightPoint.x,
-    y: canvasBottomRightPoint.y,
-    anchor: { x: 1, y: 1 },
-    width: squareCanvasSizeInPixels,
-    height: canvasBorderThickness,
-    color: canvasBordersColor,
-  }),
-  Sprite({
-    x: canvasBottomRightPoint.x,
-    y: canvasBottomRightPoint.y,
-    anchor: { x: 1, y: 1 },
-    width: canvasBorderThickness,
-    height: squareCanvasSizeInPixels,
-    color: canvasBordersColor,
-  }),
-];
+const canvasBackgrundSprite = Sprite({
+  image: tableImage,
+});
 
 const setCanvasWidthAndHeight = () => {
   canvas.width = canvas.height = squareCanvasSizeInPixels;
@@ -122,21 +104,23 @@ const updateScene = () => {
     const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
     if (sprite) {
       sprite.update();
-      const newRotationDegree = radToDeg(sprite.rotation) + 23;
-      sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
+      // const newRotationDegree = radToDeg(sprite.rotation) + 7;
+      // sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
     }
   });
 };
 
 const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: number }) => {
   context.beginPath();
-  context.strokeStyle = "#315745";
+  context.strokeStyle = "#FFF";
   context.moveTo(fromPoint.x, fromPoint.y);
   context.lineTo(toPoint.x, toPoint.y);
   context.stroke();
 };
 
 const renderScene = () => {
+  canvasBackgrundSprite.render();
+
   getGameState()?.networkObjects.forEach((networkObject) => {
     const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
 
@@ -146,8 +130,6 @@ const renderScene = () => {
 
     sprite?.render();
   });
-
-  canvasBorderSprites.forEach((sprite) => sprite.render());
 };
 
 const startMainLoop = () => {
@@ -169,7 +151,7 @@ const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
 
 const handleGameStateUpdated = (gameState: GameState) => {
   gameState.networkObjects.forEach((networkObject) => {
-    let sprite = networkObjectIdToSpriteMap.get(networkObject.id) ?? createSpriteForNetworkObject(networkObject);
+    const sprite = networkObjectIdToSpriteMap.get(networkObject.id) ?? createSpriteForNetworkObject(networkObject);
     const expectedPosition = Vector(networkObject.cpos.x, networkObject.cpos.y);
     Math.abs(expectedPosition.distance(sprite.position)) > 1
       ? setSpriteVelocity(expectedPosition, sprite)
@@ -179,10 +161,15 @@ const handleGameStateUpdated = (gameState: GameState) => {
 
 const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
   const sprite = Sprite({
-    image: vortexImage,
     x: 300,
     y: 300,
     anchor: { x: 0.5, y: 0.5 },
+    render: () => {
+      sprite.context.fillStyle = "#FFF";
+      sprite.context.beginPath();
+      sprite.context.arc(0, 0, ballRadius, 0, 2 * Math.PI);
+      sprite.context.fill();
+    },
   });
   networkObjectIdToSpriteMap.set(networkObject.id, sprite);
   return sprite;
@@ -229,7 +216,7 @@ const handleWindowResized = () => {
 };
 
 const handleJoinButtonClicked = () => {
-  socket.emit("nickname", chosenNickname.value.trim());
+  socket.emit("nickname", chosenNickname.value);
   welcomePanel.remove();
 };
 
@@ -249,6 +236,10 @@ const handlePointerDown = () => {
   publishPointerPressed(true);
 };
 
+const handleObjectDeleted = (id: number) => {
+  if (networkObjectIdToSpriteMap.has(id)) networkObjectIdToSpriteMap.delete(id);
+};
+
 subscribeToGameStateUpdated(handleGameStateUpdated);
 subscribeToMainLoopUpdate(updateScene);
 subscribeToMainLoopDraw(renderScene);
@@ -264,5 +255,5 @@ chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
 joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on("chat", handleChatMessageReceived);
 socket.on("gameState", publishGameStateUpdated);
-socket.on("objectDeleted", networkObjectIdToSpriteMap.delete);
+socket.on("objectDeleted", handleObjectDeleted);
 socket.on("collision", () => playSound(collisionSound));

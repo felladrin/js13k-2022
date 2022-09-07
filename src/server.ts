@@ -23,7 +23,7 @@ import {
   canvasTopRightPoint,
   canvasBottomRightPoint,
   canvasBottomLeftPoint,
-  letterCircleRadius,
+  ballRadius,
   gameFramesPerSecond,
   ClientToServerEvents,
   ServerToClientEvents,
@@ -65,8 +65,6 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
     acel: { x: 0, y: 0 },
     radius: 1,
     mass: 1,
-    width: 2,
-    height: 2,
     ...properties,
   } as NetworkObject;
 
@@ -88,10 +86,7 @@ const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) =>
 
 const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject) => {
   socketsConnected.forEach((targetSocket) => {
-    targetSocket.emit("collision", [
-      (firstObject.cpos.x + secondObject.cpos.x) / 2,
-      (firstObject.cpos.y + secondObject.cpos.y) / 2,
-    ]);
+    targetSocket.emit("collision");
   });
   return collideCircleCircle(
     firstObject,
@@ -106,8 +101,8 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
 };
 
 const handleSocketConnected = (socket: ServerSocket) => {
-  socket.data = createNetworkObject({ radius: letterCircleRadius, ownerSocketId: socket.id });
-  socket.data.nickname = `Subject #${socket.data.id}`;
+  socket.data = createNetworkObject({ radius: ballRadius, ownerSocketId: socket.id });
+  socket.data.nickname = `Player #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
 };
@@ -163,7 +158,7 @@ const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
   pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
       socketsConnected.forEach((targetSocket) => {
-        targetSocket.emit("collision", [networkObject.cpos.x / 2, networkObject.cpos.y / 2]);
+        targetSocket.emit("collision");
       });
       collideCircleEdge(
         networkObject,
@@ -208,6 +203,13 @@ const emitGameStateToConnectedSockets = () => {
   socketsConnected.forEach((socket) => {
     socket.emit("gameState", { networkObjects });
   });
+};
+
+const randomHexColor = () => {
+  const randomInteger = (max: number) => Math.floor(Math.random() * (max + 1));
+  const randomRgbColor = () => [randomInteger(255), randomInteger(255), randomInteger(255)];
+  const [r, g, b] = randomRgbColor();
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 };
 
 subscribeToSocketDisconnected(handleSocketDisconnected);

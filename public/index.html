@@ -21,13 +21,17 @@
         width: 100vw;
         height: var(--inner-height);
         overflow: hidden;
-        background-color: black;
+        background-color: #370000;
         touch-action: none;
         font-family: Verdana, Geneva, Tahoma, sans-serif;
       }
 
       img {
         display: none;
+      }
+
+      #canvas {
+        image-rendering: pixelated;
       }
 
       #a {
@@ -78,19 +82,25 @@
           "b1 b1"
           "b2 b3";
         grid-template-columns: 1fr 64px;
-        grid-template-rows: 1fr 32px;
+        grid-template-rows: 1fr 36px;
       }
 
       #b1 {
         grid-area: b1;
+        background-color: #550000;
+        padding: 0 5px;
       }
 
       #b2 {
         grid-area: b2;
+        background-color: #aa0000;
+        padding: 0 5px;
+        padding-bottom: 4px;
       }
 
       #b3 {
         grid-area: b3;
+        padding-bottom: 4px;
       }
 
       #b textarea,
@@ -99,16 +109,20 @@
         width: 100%;
         height: 100%;
         border: none;
-        background-color: darkslategrey;
         color: white;
       }
 
+      #b input {
+        background-color: #aa0000;
+      }
+
       #b textarea {
+        background-color: #550000;
         resize: none;
       }
 
       #b button {
-        background-color: #4caf50;
+        background-color: #55aa00;
         text-align: center;
         display: inline-block;
       }
@@ -150,7 +164,15 @@
         <button>Join</button>
       </p>
     </div>
-    <img id="y" src="./vortex.webp" />
+    <img id="i0" src="./0.webp" />
+    <img id="i1" src="./1.webp" />
+    <img id="i2" src="./2.webp" />
+    <img id="i3" src="./3.webp" />
+    <img id="i4" src="./4.webp" />
+    <img id="i5" src="./5.webp" />
+    <img id="i6" src="./6.webp" />
+    <img id="i7" src="./7.webp" />
+    <img id="i8" src="./8.webp" />
     <script src="./socket.io/socket.io.js"></script>
     <script src="./client.js"></script>
   </body>
