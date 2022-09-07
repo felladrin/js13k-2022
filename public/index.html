@@ -30,6 +30,10 @@
         display: none;
       }
 
+      button {
+        cursor: pointer;
+      }
+
       #canvas {
         image-rendering: pixelated;
       }
@@ -81,7 +85,7 @@
         grid-template-areas:
           "b1 b1"
           "b2 b3";
-        grid-template-columns: 1fr 64px;
+        grid-template-columns: 1fr 48px;
         grid-template-rows: 1fr 36px;
       }
 
@@ -95,12 +99,10 @@
         grid-area: b2;
         background-color: #aa0000;
         padding: 0 5px;
-        padding-bottom: 4px;
       }
 
       #b3 {
         grid-area: b3;
-        padding-bottom: 4px;
       }
 
       #b textarea,
@@ -110,6 +112,8 @@
         height: 100%;
         border: none;
         color: white;
+        font-family: "Courier New", Courier, monospace;
+        font-weight: bold;
       }
 
       #b input {
@@ -147,7 +151,7 @@
             <textarea disabled="disabled"></textarea>
           </div>
           <div id="b2">
-            <input placeholder="Type your message here" type="text" />
+            <input placeholder="Message" type="text" />
           </div>
           <div id="b3">
             <button>Send</button>

@@ -19,15 +19,10 @@ import {
   NetworkObject,
   gameStateUpdatesPerSecond,
   squareCanvasSizeInPixels,
-  canvasTopLeftPoint,
-  canvasTopRightPoint,
-  canvasBottomRightPoint,
-  canvasBottomLeftPoint,
   ballRadius,
   gameFramesPerSecond,
   ClientToServerEvents,
   ServerToClientEvents,
-  canvasBackgroundPadding,
 } from "./shared";
 import { DefaultEventsMap } from "socket.io/dist/typed-events";
 
@@ -56,6 +51,21 @@ const networkObjects = [] as NetworkObject[];
 
 const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00", "#1f952f", "#550000", "#1a191e"];
 
+const tablePadding = 64;
+const playableAreaTopLeftPoint = { x: tablePadding, y: tablePadding };
+const playableAreaTopRightPoint = {
+  x: squareCanvasSizeInPixels - tablePadding,
+  y: tablePadding,
+};
+const playableAreaBottomLeftPoint = {
+  x: tablePadding,
+  y: squareCanvasSizeInPixels - tablePadding,
+};
+const playableAreaBottomRightPoint = {
+  x: squareCanvasSizeInPixels - tablePadding,
+  y: squareCanvasSizeInPixels - tablePadding,
+};
+
 const getRandomElementFrom = (object: any[] | string) => object[Math.floor(Math.random() * object.length)];
 
 const getRandomSmile = () => `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
@@ -83,9 +93,7 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
 };
 
 const getRandomNumberInsideCanvasSize = () =>
-  canvasBackgroundPadding +
-  ballRadius +
-  Math.floor(Math.random() * (squareCanvasSizeInPixels - (canvasBackgroundPadding + ballRadius) * 2));
+  tablePadding + ballRadius + Math.floor(Math.random() * (squareCanvasSizeInPixels - (tablePadding + ballRadius) * 2));
 
 const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) => {
   return overlapCircleCircle(
@@ -165,12 +173,12 @@ const setupSocketListeners = (socket: ServerSocket) => {
   });
 };
 
-const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
+const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
   const pointsFromCanvasEdges = [
-    [canvasTopLeftPoint, canvasTopRightPoint],
-    [canvasTopRightPoint, canvasBottomRightPoint],
-    [canvasBottomRightPoint, canvasBottomLeftPoint],
-    [canvasBottomLeftPoint, canvasTopLeftPoint],
+    [playableAreaTopLeftPoint, playableAreaTopRightPoint],
+    [playableAreaTopRightPoint, playableAreaBottomRightPoint],
+    [playableAreaBottomRightPoint, playableAreaBottomLeftPoint],
+    [playableAreaBottomLeftPoint, playableAreaTopLeftPoint],
   ] as [pointA: Vector2, pointB: Vector2][];
 
   pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
@@ -208,7 +216,7 @@ const updatePhysics = () => {
         handleCollision(networkObject, otherNetworkObject);
       });
 
-    checkCollisionWithCanvasEdges(networkObject);
+    checkCollisionWithTableEdges(networkObject);
 
     inertia(networkObject);
   });

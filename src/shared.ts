@@ -34,18 +34,3 @@ export interface ClientToServerEvents {
   nickname: (nickname: string) => void;
   pointerPressed: (coordinates: [x: number, y: number]) => void;
 }
-
-export const canvasBackgroundPadding = 64;
-export const canvasTopLeftPoint = { x: canvasBackgroundPadding, y: canvasBackgroundPadding };
-export const canvasTopRightPoint = {
-  x: squareCanvasSizeInPixels - canvasBackgroundPadding,
-  y: canvasBackgroundPadding,
-};
-export const canvasBottomLeftPoint = {
-  x: canvasBackgroundPadding,
-  y: squareCanvasSizeInPixels - canvasBackgroundPadding,
-};
-export const canvasBottomRightPoint = {
-  x: squareCanvasSizeInPixels - canvasBackgroundPadding,
-  y: squareCanvasSizeInPixels - canvasBackgroundPadding,
-};
