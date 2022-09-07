@@ -12,8 +12,10 @@ export type NetworkObject = Integratable & {
   id: number;
   radius: number;
   mass: number;
-  ownerSocketId?: string;
   value: number;
+  label: string;
+  color: string;
+  ownerSocketId?: string;
 };
 
 export type GameState = {

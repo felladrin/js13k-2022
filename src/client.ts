@@ -78,8 +78,6 @@ const acceleratingSound = [, , 999, 0.2, 0.04, 0.15, 4, 2.66, -0.5, 22, , , , 0.
 
 const screamSound = [1.71, , 727, 0.02, 0.03, 0, 3, 0.09, 4.4, -62, , , , , , , 0.19, 0.65, 0.2, 0.51];
 
-const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00", "#1f952f", "#550000", "#1a191e"];
-
 const canvasBackgrundSprite = Sprite({
   image: tableImage,
 });
@@ -168,32 +166,33 @@ const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
   const sprite = Sprite({
     anchor: { x: 0.5, y: 0.5 },
     render: () => {
-      sprite.context.fillStyle = ballColors[networkObject.value];
+      sprite.context.fillStyle = networkObject.color;
       sprite.context.beginPath();
       sprite.context.arc(0, 0, ballRadius, 0, 2 * Math.PI);
       sprite.context.fill();
     },
   });
-  if (networkObject.value) {
-    const whiteCircle = Sprite({
-      anchor: { x: 0.5, y: 0.5 },
-      render: () => {
-        sprite.context.fillStyle = "#fff";
-        sprite.context.beginPath();
-        sprite.context.arc(0, 0, ballRadius / 1.5, 0, 2 * Math.PI);
-        sprite.context.fill();
-      },
-    });
-    const ballNumber = Text({
-      text: networkObject.value.toString(),
-      font: `${ballRadius}px monospace`,
-      color: "black",
-      anchor: { x: 0.5, y: 0.5 },
-      textAlign: "center",
-    });
-    sprite.addChild(whiteCircle);
-    sprite.addChild(ballNumber);
-  }
+
+  const whiteCircle = Sprite({
+    anchor: { x: 0.5, y: 0.5 },
+    render: () => {
+      sprite.context.fillStyle = "#fff";
+      sprite.context.beginPath();
+      sprite.context.arc(0, 0, ballRadius / 1.5, 0, 2 * Math.PI);
+      sprite.context.fill();
+    },
+  });
+  sprite.addChild(whiteCircle);
+
+  const ballLabel = Text({
+    text: networkObject.label,
+    font: `${ballRadius}px monospace`,
+    color: "black",
+    anchor: { x: 0.5, y: 0.5 },
+    textAlign: "center",
+  });
+  sprite.addChild(ballLabel);
+
   networkObjectIdToSpriteMap.set(networkObject.id, sprite);
   return sprite;
 };

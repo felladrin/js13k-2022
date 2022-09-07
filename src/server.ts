@@ -54,6 +54,12 @@ const massOfImmovableObjects = -1;
 
 const networkObjects = [] as NetworkObject[];
 
+const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00", "#1f952f", "#550000", "#1a191e"];
+
+const getRandomElementFrom = (object: any[] | string) => object[Math.floor(Math.random() * object.length)];
+
+const getRandomSmile = () => `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
+
 const createNetworkObject = (properties?: Partial<NetworkObject>) => {
   const id = getNextGameObjectId();
 
@@ -67,6 +73,7 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
     radius: 1,
     mass: 1,
     value: 0,
+    label: getRandomSmile(),
     ...properties,
   } as NetworkObject;
 
@@ -79,16 +86,6 @@ const getRandomNumberInsideCanvasSize = () =>
   canvasBackgroundPadding +
   ballRadius +
   Math.floor(Math.random() * (squareCanvasSizeInPixels - (canvasBackgroundPadding + ballRadius) * 2));
-
-for (let value = 1; value <= 8; value++) {
-  const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
-  createNetworkObject({
-    cpos: { x: randomPosition.x, y: randomPosition.y },
-    ppos: { x: randomPosition.x, y: randomPosition.y },
-    radius: ballRadius,
-    value,
-  });
-}
 
 const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) => {
   return overlapCircleCircle(
@@ -121,6 +118,7 @@ const handleSocketConnected = (socket: ServerSocket) => {
     ppos: { x: randomPosition.x, y: randomPosition.y },
     radius: ballRadius,
     ownerSocketId: socket.id,
+    color: getRandomHexColor(),
   });
   socket.data.nickname = `Player #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
@@ -177,9 +175,6 @@ const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
 
   pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
-      // socketsConnected.forEach((targetSocket) => {
-      //   targetSocket.emit("score");
-      // });
       collideCircleEdge(
         networkObject,
         networkObject.radius,
@@ -225,12 +220,24 @@ const emitGameStateToConnectedSockets = () => {
   });
 };
 
-const randomHexColor = () => {
+const getRandomHexColor = () => {
   const randomInteger = (max: number) => Math.floor(Math.random() * (max + 1));
   const randomRgbColor = () => [randomInteger(255), randomInteger(255), randomInteger(255)];
   const [r, g, b] = randomRgbColor();
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 };
+
+for (let value = 1; value <= 8; value++) {
+  const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
+  createNetworkObject({
+    cpos: { x: randomPosition.x, y: randomPosition.y },
+    ppos: { x: randomPosition.x, y: randomPosition.y },
+    radius: ballRadius,
+    value,
+    label: `${value}`,
+    color: ballColors[value],
+  });
+}
 
 subscribeToSocketDisconnected(handleSocketDisconnected);
 subscribeToSocketConnected(handleSocketConnected);
