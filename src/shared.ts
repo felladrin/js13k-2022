@@ -4,7 +4,7 @@ export const gameStateUpdatesPerSecond = 4;
 
 export const gameFramesPerSecond = 60;
 
-export const ballRadius = 7;
+export const ballRadius = 14;
 
 export const squareCanvasSizeInPixels = 680;
 
@@ -12,7 +12,8 @@ export type NetworkObject = Integratable & {
   id: number;
   radius: number;
   mass: number;
-  ownerSocketId: string;
+  ownerSocketId?: string;
+  value: number;
 };
 
 export type GameState = {
@@ -23,7 +24,7 @@ export interface ServerToClientEvents {
   chat: (message: string) => void;
   gameState: (gameState: GameState) => void;
   objectDeleted: (id: number) => void;
-  collision: () => void;
+  score: () => void;
 }
 
 export interface ClientToServerEvents {

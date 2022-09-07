@@ -27,6 +27,7 @@ import {
   gameFramesPerSecond,
   ClientToServerEvents,
   ServerToClientEvents,
+  canvasBackgroundPadding,
 } from "./shared";
 import { DefaultEventsMap } from "socket.io/dist/typed-events";
 
@@ -65,6 +66,7 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
     acel: { x: 0, y: 0 },
     radius: 1,
     mass: 1,
+    value: 0,
     ...properties,
   } as NetworkObject;
 
@@ -72,6 +74,21 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
 
   return gameObject;
 };
+
+const getRandomNumberInsideCanvasSize = () =>
+  canvasBackgroundPadding +
+  ballRadius +
+  Math.floor(Math.random() * (squareCanvasSizeInPixels - (canvasBackgroundPadding + ballRadius) * 2));
+
+for (let value = 1; value <= 8; value++) {
+  const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
+  createNetworkObject({
+    cpos: { x: randomPosition.x, y: randomPosition.y },
+    ppos: { x: randomPosition.x, y: randomPosition.y },
+    radius: ballRadius,
+    value,
+  });
+}
 
 const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) => {
   return overlapCircleCircle(
@@ -85,9 +102,6 @@ const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) =>
 };
 
 const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject) => {
-  socketsConnected.forEach((targetSocket) => {
-    targetSocket.emit("collision");
-  });
   return collideCircleCircle(
     firstObject,
     firstObject.radius,
@@ -101,7 +115,13 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
 };
 
 const handleSocketConnected = (socket: ServerSocket) => {
-  socket.data = createNetworkObject({ radius: ballRadius, ownerSocketId: socket.id });
+  const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
+  socket.data = createNetworkObject({
+    cpos: { x: randomPosition.x, y: randomPosition.y },
+    ppos: { x: randomPosition.x, y: randomPosition.y },
+    radius: ballRadius,
+    ownerSocketId: socket.id,
+  });
   socket.data.nickname = `Player #${socket.data.id}`;
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
@@ -157,9 +177,9 @@ const checkCollisionWithCanvasEdges = (networkObject: NetworkObject) => {
 
   pointsFromCanvasEdges.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
-      socketsConnected.forEach((targetSocket) => {
-        targetSocket.emit("collision");
-      });
+      // socketsConnected.forEach((targetSocket) => {
+      //   targetSocket.emit("score");
+      // });
       collideCircleEdge(
         networkObject,
         networkObject.radius,

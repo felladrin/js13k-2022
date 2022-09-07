@@ -3,8 +3,6 @@ import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointe
 import { Socket } from "socket.io-client";
 import { zzfx } from "zzfx";
 import {
-  canvasBottomRightPoint,
-  canvasTopLeftPoint,
   GameState,
   gameStateUpdatesPerSecond,
   NetworkObject,
@@ -31,22 +29,6 @@ const welcomePanel = document.querySelector("#z") as HTMLDivElement;
 
 const tableImage = document.querySelector("#i0") as HTMLImageElement;
 
-const ball1Image = document.querySelector("#i1") as HTMLImageElement;
-
-const ball2Image = document.querySelector("#i2") as HTMLImageElement;
-
-const ball3Image = document.querySelector("#i3") as HTMLImageElement;
-
-const ball4Image = document.querySelector("#i4") as HTMLImageElement;
-
-const ball5Image = document.querySelector("#i5") as HTMLImageElement;
-
-const ball6Image = document.querySelector("#i6") as HTMLImageElement;
-
-const ball7Image = document.querySelector("#i7") as HTMLImageElement;
-
-const ball8Image = document.querySelector("#i8") as HTMLImageElement;
-
 const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
 
 const joinButton = welcomePanel.querySelector("button") as HTMLButtonElement;
@@ -69,11 +51,34 @@ const [publishLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed]
 
 const messageReceivedSound = [2.01, , 773, 0.02, 0.01, 0.01, 1, 1.14, 44, -27, , , , , 0.9, , 0.18, 0.81, 0.01];
 
-const collisionSound = [2.38, , 1458, 0.01, 0.01, 0.15, 1, 1.65, , , , , , , , 0.1, 0.08, 0.53];
+const scoreSound = [
+  1.35,
+  ,
+  151,
+  0.1,
+  0.17,
+  0.26,
+  1,
+  0.34,
+  -4.1,
+  -5,
+  -225,
+  0.02,
+  0.14,
+  0.1,
+  ,
+  0.1,
+  0.13,
+  0.9,
+  0.22,
+  0.17,
+];
 
 const acceleratingSound = [, , 999, 0.2, 0.04, 0.15, 4, 2.66, -0.5, 22, , , , 0.1, , , , , 0.02];
 
 const screamSound = [1.71, , 727, 0.02, 0.03, 0, 3, 0.09, 4.4, -62, , , , , , , 0.19, 0.65, 0.2, 0.51];
+
+const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00", "#1f952f", "#550000", "#1a191e"];
 
 const canvasBackgrundSprite = Sprite({
   image: tableImage,
@@ -104,15 +109,15 @@ const updateScene = () => {
     const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
     if (sprite) {
       sprite.update();
-      // const newRotationDegree = radToDeg(sprite.rotation) + 7;
-      // sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
+      const newRotationDegree = radToDeg(sprite.rotation) + (Math.abs(sprite.dx) + Math.abs(sprite.dy)) * 7;
+      sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
     }
   });
 };
 
 const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: number }) => {
   context.beginPath();
-  context.strokeStyle = "#FFF";
+  context.strokeStyle = "#fff";
   context.moveTo(fromPoint.x, fromPoint.y);
   context.lineTo(toPoint.x, toPoint.y);
   context.stroke();
@@ -161,16 +166,34 @@ const handleGameStateUpdated = (gameState: GameState) => {
 
 const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
   const sprite = Sprite({
-    x: 300,
-    y: 300,
     anchor: { x: 0.5, y: 0.5 },
     render: () => {
-      sprite.context.fillStyle = "#FFF";
+      sprite.context.fillStyle = ballColors[networkObject.value];
       sprite.context.beginPath();
       sprite.context.arc(0, 0, ballRadius, 0, 2 * Math.PI);
       sprite.context.fill();
     },
   });
+  if (networkObject.value) {
+    const whiteCircle = Sprite({
+      anchor: { x: 0.5, y: 0.5 },
+      render: () => {
+        sprite.context.fillStyle = "#fff";
+        sprite.context.beginPath();
+        sprite.context.arc(0, 0, ballRadius / 1.5, 0, 2 * Math.PI);
+        sprite.context.fill();
+      },
+    });
+    const ballNumber = Text({
+      text: networkObject.value.toString(),
+      font: `${ballRadius}px monospace`,
+      color: "black",
+      anchor: { x: 0.5, y: 0.5 },
+      textAlign: "center",
+    });
+    sprite.addChild(whiteCircle);
+    sprite.addChild(ballNumber);
+  }
   networkObjectIdToSpriteMap.set(networkObject.id, sprite);
   return sprite;
 };
@@ -256,4 +279,4 @@ joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on("chat", handleChatMessageReceived);
 socket.on("gameState", publishGameStateUpdated);
 socket.on("objectDeleted", handleObjectDeleted);
-socket.on("collision", () => playSound(collisionSound));
+socket.on("score", () => playSound(scoreSound));
