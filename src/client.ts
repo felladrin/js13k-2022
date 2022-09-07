@@ -27,7 +27,7 @@ const chatButton = document.querySelector("#b button") as HTMLButtonElement;
 
 const welcomePanel = document.querySelector("#z") as HTMLDivElement;
 
-const tableImage = document.querySelector("#i0") as HTMLImageElement;
+const tableImage = document.querySelector("img[src='table.webp']") as HTMLImageElement;
 
 const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
 
