@@ -27,6 +27,7 @@ import {
   ServerToClientEvents,
   ServerToClientEventName,
   ClientToServerEventName,
+  NetworkObjectsPositions,
 } from "./shared";
 
 type SocketData = NetworkObject & {
@@ -61,6 +62,8 @@ const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00
 const cornerPocketSize = 100;
 
 const tablePadding = 64;
+
+const maximumNicknameLength = 21;
 
 const tableLeftRailPoints = [
   v2(tablePadding, cornerPocketSize),
@@ -125,6 +128,10 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
 
   networkObjects.push(gameObject);
 
+  socketsConnected.forEach((socket) => {
+    socket.emit(ServerToClientEventName.Creation, gameObject);
+  });
+
   return gameObject;
 };
 
@@ -165,6 +172,12 @@ const handleSocketConnected = (socket: ServerSocket) => {
     color: getRandomHexColor(),
   });
   socket.data.nickname = `Player #${socket.data.id}`;
+  socket.emit(
+    ServerToClientEventName.Message,
+    `📢 Welcome, ${socket.data.nickname}!\nTo change your nickname, type '/nick <name>' on the text field below.`
+  );
+  socket.emit(ServerToClientEventName.NetworkObjects, networkObjects);
+  broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
 };
@@ -186,12 +199,15 @@ const broadcastChatMessage = (message: string) => {
 const setupSocketListeners = (socket: ServerSocket) => {
   socket.on("disconnect", () => publishSocketDisconnected(socket));
   socket.on(ClientToServerEventName.Message, (message: string) => {
-    broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
-  });
-  socket.on(ClientToServerEventName.Nickname, (nickname) => {
-    const trimmedNickname = nickname.trim();
-    if (trimmedNickname.length) socket.data.nickname = trimmedNickname;
-    broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
+    if (message.startsWith("/nick ")) {
+      const trimmedNickname = message.replace("/nick ", "").trim().substring(0, maximumNicknameLength);
+      if (trimmedNickname.length) {
+        broadcastChatMessage(`📢 ${socket.data.nickname} changed nickname to ${trimmedNickname}!`);
+        socket.data.nickname = trimmedNickname;
+      }
+    } else {
+      broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
+    }
   });
   socket.on(ClientToServerEventName.Click, ([x, y]: [x: number, y: number]) => {
     if (!socket.data.cpos || !socket.data.acel) return;
@@ -247,8 +263,13 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
 };
 
 const emitGameStateToConnectedSockets = () => {
+  const positions = networkObjects.reduce((positionsArray, networkObject) => {
+    positionsArray.push([networkObject.id, Math.trunc(networkObject.cpos.x), Math.trunc(networkObject.cpos.y)]);
+    return positionsArray;
+  }, [] as NetworkObjectsPositions);
+
   socketsConnected.forEach((socket) => {
-    socket.emit(ServerToClientEventName.GameState, { networkObjects });
+    socket.emit(ServerToClientEventName.Positions, positions);
   });
 };
 
@@ -289,16 +310,18 @@ const handleMainLoopUpdate = (deltaTime: number) => {
   publishTimePassedSinceLastStateUpdateEmitted(getTimePassedSinceLastStateUpdateEmitted() + deltaTime);
 };
 
-for (let value = 1; value <= 8; value++) {
-  const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
-  createNetworkObject({
-    cpos: copy(v2(), randomPosition),
-    ppos: copy(v2(), randomPosition),
-    radius: ballRadius,
-    value,
-    label: `${value}`,
-    color: ballColors[value],
-  });
+for (let i = 0; i < 2; i++) {
+  for (let value = 1; value <= 8; value++) {
+    const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
+    createNetworkObject({
+      cpos: copy(v2(), randomPosition),
+      ppos: copy(v2(), randomPosition),
+      radius: ballRadius,
+      value,
+      label: `${value}`,
+      color: ballColors[value],
+    });
+  }
 }
 
 subscribeToTimePassedSinceLastStateUpdateEmitted(handleUpdateOnTimePassedSinceLastStateUpdateEmitted);

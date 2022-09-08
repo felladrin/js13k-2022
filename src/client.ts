@@ -3,7 +3,7 @@ import { init, GameLoop, Vector, Text, Sprite, initPointer, onPointer, getPointe
 import { Socket } from "socket.io-client";
 import { zzfx } from "zzfx";
 import {
-  GameState,
+  NetworkObjectsPositions,
   gameStateUpdatesPerSecond,
   NetworkObject,
   squareCanvasSizeInPixels,
@@ -27,13 +27,7 @@ const chatInputField = document.querySelector("#b input") as HTMLInputElement;
 
 const chatButton = document.querySelector("#b button") as HTMLButtonElement;
 
-const welcomePanel = document.querySelector("#z") as HTMLDivElement;
-
 const tableImage = document.querySelector("img[src='table.webp']") as HTMLImageElement;
-
-const chosenNickname = welcomePanel.querySelector("input") as HTMLInputElement;
-
-const joinButton = welcomePanel.querySelector("button") as HTMLButtonElement;
 
 const socket = io({ upgrade: false, transports: ["websocket"] }) as Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -45,11 +39,11 @@ const [publishPageWithImagesLoaded, subscribeToPageWithImagesLoaded] = createPub
 
 const [publishGamePreparationComplete, subscribeToGamePreparationCompleted] = createPubSub();
 
-const [publishGameStateUpdated, subscribeToGameStateUpdated, getGameState] = createPubSub<GameState>();
+const [setOwnSprite, , getOwnSprite] = createPubSub<Sprite | null>(null);
 
-const [publishPointerPressed, , isPointerPressed] = createPubSub(false);
+const [setPointerPressed, , isPointerPressed] = createPubSub(false);
 
-const [publishLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed] = createPubSub(Date.now());
+const [setLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed] = createPubSub(Date.now());
 
 const messageReceivedSound = [2.01, , 773, 0.02, 0.01, 0.01, 1, 1.14, 44, -27, , , , , 0.9, , 0.18, 0.81, 0.01];
 
@@ -98,20 +92,17 @@ const prepareGame = () => {
 const emitPointerPressedIfNeeded = () => {
   if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / gameStateUpdatesPerSecond) return;
   const { x, y } = getPointer();
-  socket.emit(ClientToServerEventName.Click, [x, y]);
-  publishLastTimeEmittedPointerPressed(Date.now());
+  socket.emit(ClientToServerEventName.Click, [Math.trunc(x), Math.trunc(y)]);
+  setLastTimeEmittedPointerPressed(Date.now());
 };
 
 const updateScene = () => {
   emitPointerPressedIfNeeded();
 
-  getGameState()?.networkObjects.forEach((networkObject) => {
-    const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
-    if (sprite) {
-      sprite.update();
-      const newRotationDegree = radToDeg(sprite.rotation) + (Math.abs(sprite.dx) + Math.abs(sprite.dy)) * 7;
-      sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
-    }
+  networkObjectIdToSpriteMap.forEach((sprite) => {
+    sprite.update();
+    const newRotationDegree = radToDeg(sprite.rotation) + (Math.abs(sprite.dx) + Math.abs(sprite.dy)) * 7;
+    sprite.rotation = degToRad(newRotationDegree < 360 ? newRotationDegree : 0);
   });
 };
 
@@ -123,18 +114,26 @@ const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: 
   context.stroke();
 };
 
+const renderOtherSprites = () => {
+  networkObjectIdToSpriteMap.forEach((sprite) => {
+    if (sprite !== getOwnSprite()) sprite.render();
+  });
+};
+
+const renderOwnSpritePossiblyWithWire = () => {
+  const ownSprite = getOwnSprite();
+
+  if (!ownSprite) return;
+
+  if (isPointerPressed()) drawLine(ownSprite.position, getPointer());
+
+  ownSprite.render();
+};
+
 const renderScene = () => {
   tableSprite.render();
-
-  getGameState()?.networkObjects.forEach((networkObject) => {
-    const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
-
-    if (isPointerPressed() && networkObject.ownerSocketId === socket.id && sprite) {
-      drawLine(sprite.position, getPointer());
-    }
-
-    sprite?.render();
-  });
+  renderOtherSprites();
+  renderOwnSpritePossiblyWithWire();
 };
 
 const startMainLoop = () => GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw }).start();
@@ -152,13 +151,11 @@ const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
   style.height = `${height * scale}px`;
 };
 
-const handleGameStateUpdated = (gameState: GameState) => {
-  gameState.networkObjects.forEach((networkObject) => {
-    const sprite = networkObjectIdToSpriteMap.get(networkObject.id) ?? createSpriteForNetworkObject(networkObject);
-    const expectedPosition = Vector(networkObject.cpos.x, networkObject.cpos.y);
-    Math.abs(expectedPosition.distance(sprite.position)) > 1
-      ? setSpriteVelocity(expectedPosition, sprite)
-      : stopSprite(sprite);
+const handleNetworkObjectsReceived = (networkObjects: NetworkObject[]) => {
+  networkObjects.forEach((networkObject) => {
+    const sprite = createSpriteForNetworkObject(networkObject);
+
+    if (networkObject.ownerSocketId === socket.id) setOwnSprite(sprite);
   });
 };
 
@@ -237,11 +234,6 @@ const handleWindowResized = () => {
   fitCanvasInsideItsParent(canvas);
 };
 
-const handleJoinButtonClicked = () => {
-  socket.emit(ClientToServerEventName.Nickname, chosenNickname.value);
-  welcomePanel.remove();
-};
-
 const [publishSoundEnabled, , isSoundEnabled] = createPubSub(false);
 
 const playSound = (sound: (number | undefined)[]) => {
@@ -254,28 +246,47 @@ const enableSounds = () => {
 };
 
 const handlePointerDown = () => {
+  if (!getOwnSprite()) return;
   playSound(acceleratingSound);
-  publishPointerPressed(true);
+  setPointerPressed(true);
 };
 
 const handleObjectDeleted = (id: number) => {
-  if (networkObjectIdToSpriteMap.has(id)) networkObjectIdToSpriteMap.delete(id);
+  const spriteToDelete = networkObjectIdToSpriteMap.get(id);
+
+  if (!spriteToDelete) return;
+
+  if (spriteToDelete === getOwnSprite()) setOwnSprite(null);
+
+  networkObjectIdToSpriteMap.delete(id);
 };
 
-subscribeToGameStateUpdated(handleGameStateUpdated);
+const handlePositionsUpdated = (positions: NetworkObjectsPositions): void => {
+  positions.forEach(([objectId, x, y]) => {
+    const sprite = networkObjectIdToSpriteMap.get(objectId);
+    if (sprite) {
+      const expectedPosition = Vector(x, y);
+      Math.abs(expectedPosition.distance(sprite.position)) > 1
+        ? setSpriteVelocity(expectedPosition, sprite)
+        : stopSprite(sprite);
+    }
+  });
+};
+
 subscribeToMainLoopUpdate(updateScene);
 subscribeToMainLoopDraw(renderScene);
 subscribeToGamePreparationCompleted(startMainLoop);
 subscribeToPageWithImagesLoaded(prepareGame);
 onPointer("down", handlePointerDown);
-onPointer("up", () => publishPointerPressed(false));
+onPointer("up", () => setPointerPressed(false));
 window.addEventListener("load", publishPageWithImagesLoaded);
 window.addEventListener("resize", handleWindowResized);
 window.addEventListener("click", enableSounds, { once: true });
 chatButton.addEventListener("click", sendChatMessage);
 chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
-joinButton.addEventListener("click", handleJoinButtonClicked);
 socket.on(ServerToClientEventName.Message, handleChatMessageReceived);
-socket.on(ServerToClientEventName.GameState, publishGameStateUpdated);
+socket.on(ServerToClientEventName.NetworkObjects, handleNetworkObjectsReceived);
+socket.on(ServerToClientEventName.Positions, handlePositionsUpdated);
+socket.on(ServerToClientEventName.Creation, createSpriteForNetworkObject);
 socket.on(ServerToClientEventName.Deletion, handleObjectDeleted);
 socket.on(ServerToClientEventName.Score, () => playSound(scoreSound));

@@ -18,32 +18,32 @@ export type NetworkObject = Integratable & {
   ownerSocketId?: string;
 };
 
-export type GameState = {
-  networkObjects: NetworkObject[];
-};
+export type NetworkObjectsPositions = [objectId: number, x: number, y: number][];
 
 export enum ServerToClientEventName {
-  GameState = "A",
-  Message = "B",
-  Deletion = "C",
-  Score = "D",
+  Message = "A",
+  NetworkObjects = "B",
+  Creation = "C",
+  Deletion = "D",
+  Score = "E",
+  Positions = "F",
 }
 
 export enum ClientToServerEventName {
   Message = "A",
-  Nickname = "B",
-  Click = "C",
+  Click = "B",
 }
 
 export interface ServerToClientEvents {
   [ServerToClientEventName.Message]: (message: string) => void;
-  [ServerToClientEventName.GameState]: (gameState: GameState) => void;
+  [ServerToClientEventName.NetworkObjects]: (networkObjects: NetworkObject[]) => void;
+  [ServerToClientEventName.Creation]: (networkObject: NetworkObject) => void;
   [ServerToClientEventName.Deletion]: (id: number) => void;
   [ServerToClientEventName.Score]: () => void;
+  [ServerToClientEventName.Positions]: (networkObjectsPositions: NetworkObjectsPositions) => void;
 }
 
 export interface ClientToServerEvents {
   [ClientToServerEventName.Message]: (message: string) => void;
-  [ClientToServerEventName.Nickname]: (nickname: string) => void;
   [ClientToServerEventName.Click]: (coordinates: [x: number, y: number]) => void;
 }
