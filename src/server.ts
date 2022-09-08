@@ -28,6 +28,7 @@ import {
   ServerToClientEventName,
   ClientToServerEventName,
   NetworkObjectsPositions,
+  Scoreboard,
 } from "./shared";
 
 type SocketData = NetworkObject & {
@@ -49,9 +50,17 @@ const [
   getTimePassedSinceLastStateUpdateEmitted,
 ] = createPubSub(0);
 
+const [
+  publishTimePassedSinceLastScoreboardUpdate,
+  subscribeToTimePassedSinceLastScoreboardUpdate,
+  getTimePassedSinceLastScoreboardUpdate,
+] = createPubSub(0);
+
 const socketsConnected = new Map<string, ServerSocket>();
 
-const gameStateUpdateMillisecondsInterval = 1000 / networkObjectsUpdatesPerSecond;
+const scoreboardUpdateMillisecondsInterval = 1500;
+
+const objectsPositionsUpdateMillisecondsInterval = 1000 / networkObjectsUpdatesPerSecond;
 
 const massOfImmovableObjects = -1;
 
@@ -187,11 +196,12 @@ const handleSocketConnected = (socket: ServerSocket) => {
     color: getRandomHexColor(),
   });
   socket.data.nickname = `Player #${socket.data.id}`;
+  socket.data.score = 0;
   socket.emit(
     ServerToClientEventName.Message,
     `📢 Welcome, ${socket.data.nickname}!\nTo change your nickname, type '/nick <name>' on the text field below.`
   );
-  socket.emit(ServerToClientEventName.NetworkObjects, networkObjects);
+  socket.emit(ServerToClientEventName.Objects, networkObjects);
   broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
   socketsConnected.set(socket.id, socket);
   setupSocketListeners(socket);
@@ -275,15 +285,17 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
         const socketThatScored = socketsConnected.get(networkObject.lastTouchedBySocketId);
 
         if (socketThatScored) {
-          socketThatScored.data.score = (socketThatScored.data.score ?? 0) + networkObject.value;
-          socketThatScored.emit(ServerToClientEventName.Score);
+          socketThatScored.data.score = (socketThatScored.data.score as number) + networkObject.value;
+          socketThatScored.emit(ServerToClientEventName.Scored);
         }
       }
     }
   });
 };
 
-const emitGameStateToConnectedSockets = () => {
+const emitObjectsPositionsToConnectedSockets = () => {
+  if (!networkObjects.length) return;
+
   const positions = networkObjects.reduce<NetworkObjectsPositions>((networkObjectsPositions, networkObject) => {
     networkObjectsPositions.push([
       networkObject.id,
@@ -298,10 +310,30 @@ const emitGameStateToConnectedSockets = () => {
   });
 };
 
-const handleUpdateOnTimePassedSinceLastStateUpdateEmitted = (deltaTime: number) => {
-  if (deltaTime > gameStateUpdateMillisecondsInterval) {
-    emitGameStateToConnectedSockets();
-    publishTimePassedSinceLastStateUpdateEmitted(deltaTime - gameStateUpdateMillisecondsInterval);
+const emitScoreboardToConnectedSockets = () => {
+  const scoreboard = Array.from(socketsConnected.values())
+    .sort((a, b) => (a.data.score as number) - (b.data.score as number))
+    .reduce<Scoreboard>((scoreboard, socket) => {
+      scoreboard.push([socket.id, socket.data.nickname as string, socket.data.score as number]);
+      return scoreboard;
+    }, []);
+
+  socketsConnected.forEach((socket) => {
+    socket.emit(ServerToClientEventName.Scoreboard, scoreboard);
+  });
+};
+
+const handleUpdateOnTimePassedSinceLastStateUpdateEmitted = (timePassed: number) => {
+  if (timePassed > objectsPositionsUpdateMillisecondsInterval) {
+    emitObjectsPositionsToConnectedSockets();
+    publishTimePassedSinceLastStateUpdateEmitted(timePassed - objectsPositionsUpdateMillisecondsInterval);
+  }
+};
+
+const handleUpdateOnTimePassedSinceLastScoreboardUpdate = (timePassed: number) => {
+  if (timePassed > scoreboardUpdateMillisecondsInterval) {
+    emitScoreboardToConnectedSockets();
+    publishTimePassedSinceLastScoreboardUpdate(timePassed - scoreboardUpdateMillisecondsInterval);
   }
 };
 
@@ -333,6 +365,7 @@ const getRandomHexColor = () => {
 const handleMainLoopUpdate = (deltaTime: number) => {
   updatePhysics(deltaTime);
   publishTimePassedSinceLastStateUpdateEmitted(getTimePassedSinceLastStateUpdateEmitted() + deltaTime);
+  publishTimePassedSinceLastScoreboardUpdate(getTimePassedSinceLastScoreboardUpdate() + deltaTime);
 };
 
 for (let i = 0; i < 2; i++) {
@@ -349,6 +382,7 @@ for (let i = 0; i < 2; i++) {
   }
 }
 
+subscribeToTimePassedSinceLastScoreboardUpdate(handleUpdateOnTimePassedSinceLastScoreboardUpdate);
 subscribeToTimePassedSinceLastStateUpdateEmitted(handleUpdateOnTimePassedSinceLastStateUpdateEmitted);
 subscribeToSocketDisconnected(handleSocketDisconnected);
 subscribeToSocketConnected(handleSocketConnected);
