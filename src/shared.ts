@@ -1,8 +1,6 @@
 import type { Integratable } from "pocket-physics";
 
-export const gameStateUpdatesPerSecond = 4;
-
-export const gameFramesPerSecond = 60;
+export const networkObjectsUpdatesPerSecond = 8;
 
 export const ballRadius = 14;
 

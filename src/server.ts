@@ -20,7 +20,7 @@ import {
 } from "pocket-physics";
 import {
   NetworkObject,
-  gameStateUpdatesPerSecond,
+  networkObjectsUpdatesPerSecond,
   squareCanvasSizeInPixels,
   ballRadius,
   ClientToServerEvents,
@@ -51,7 +51,7 @@ const [
 
 const socketsConnected = new Map<string, ServerSocket>();
 
-const gameStateUpdateMillisecondsInterval = 1000 / gameStateUpdatesPerSecond;
+const gameStateUpdateMillisecondsInterval = 1000 / networkObjectsUpdatesPerSecond;
 
 const massOfImmovableObjects = -1;
 
@@ -263,10 +263,14 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
 };
 
 const emitGameStateToConnectedSockets = () => {
-  const positions = networkObjects.reduce((positionsArray, networkObject) => {
-    positionsArray.push([networkObject.id, Math.trunc(networkObject.cpos.x), Math.trunc(networkObject.cpos.y)]);
-    return positionsArray;
-  }, [] as NetworkObjectsPositions);
+  const positions = networkObjects.reduce<NetworkObjectsPositions>((networkObjectsPositions, networkObject) => {
+    networkObjectsPositions.push([
+      networkObject.id,
+      Math.trunc(networkObject.cpos.x),
+      Math.trunc(networkObject.cpos.y),
+    ]);
+    return networkObjectsPositions;
+  }, []);
 
   socketsConnected.forEach((socket) => {
     socket.emit(ServerToClientEventName.Positions, positions);

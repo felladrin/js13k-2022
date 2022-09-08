@@ -4,10 +4,9 @@ import { Socket } from "socket.io-client";
 import { zzfx } from "zzfx";
 import {
   NetworkObjectsPositions,
-  gameStateUpdatesPerSecond,
+  networkObjectsUpdatesPerSecond,
   NetworkObject,
   squareCanvasSizeInPixels,
-  gameFramesPerSecond,
   ServerToClientEvents,
   ClientToServerEvents,
   ballRadius,
@@ -15,7 +14,9 @@ import {
   ServerToClientEventName,
 } from "./shared";
 
-const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
+const gameFramesPerSecond = 60;
+
+const gameStateUpdateFramesInterval = gameFramesPerSecond / networkObjectsUpdatesPerSecond;
 
 const networkObjectIdToSpriteMap = new Map<number, Sprite>();
 
@@ -90,7 +91,8 @@ const prepareGame = () => {
 };
 
 const emitPointerPressedIfNeeded = () => {
-  if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / gameStateUpdatesPerSecond) return;
+  if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / networkObjectsUpdatesPerSecond)
+    return;
   const { x, y } = getPointer();
   socket.emit(ClientToServerEventName.Click, [Math.trunc(x), Math.trunc(y)]);
   setLastTimeEmittedPointerPressed(Date.now());
@@ -161,6 +163,8 @@ const handleNetworkObjectsReceived = (networkObjects: NetworkObject[]) => {
 
 const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
   const sprite = Sprite({
+    x: squareCanvasSizeInPixels / 2,
+    y: squareCanvasSizeInPixels / 2,
     anchor: { x: 0.5, y: 0.5 },
     render: () => {
       sprite.context.fillStyle = networkObject.color;
