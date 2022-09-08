@@ -123,6 +123,7 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
     mass: 1,
     value: 0,
     label: getRandomSmile(),
+    lastTouchedTimestamp: Date.now(),
     ...properties,
   } as NetworkObject;
 
@@ -150,6 +151,20 @@ const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) =>
 };
 
 const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject) => {
+  if (firstObject.ownerSocketId || secondObject.ownerSocketId) {
+    if (firstObject.ownerSocketId) secondObject.lastTouchedBySocketId = firstObject.ownerSocketId;
+
+    if (secondObject.ownerSocketId) firstObject.lastTouchedBySocketId = secondObject.ownerSocketId;
+  } else {
+    if (firstObject.lastTouchedTimestamp > secondObject.lastTouchedTimestamp) {
+      secondObject.lastTouchedBySocketId = firstObject.lastTouchedBySocketId;
+    } else {
+      firstObject.lastTouchedBySocketId = secondObject.lastTouchedBySocketId;
+    }
+  }
+
+  firstObject.lastTouchedTimestamp = secondObject.lastTouchedTimestamp = Date.now();
+
   return collideCircleCircle(
     firstObject,
     firstObject.radius,
@@ -255,9 +270,15 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
   scoreLines.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
       deleteNetworkObject(networkObject);
-      socketsConnected.forEach((socket) => {
-        socket.emit(ServerToClientEventName.Score);
-      });
+
+      if (networkObject.lastTouchedBySocketId) {
+        const socketThatScored = socketsConnected.get(networkObject.lastTouchedBySocketId);
+
+        if (socketThatScored) {
+          socketThatScored.data.score = (socketThatScored.data.score ?? 0) + networkObject.value;
+          socketThatScored.emit(ServerToClientEventName.Score);
+        }
+      }
     }
   });
 };

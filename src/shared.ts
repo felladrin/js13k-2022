@@ -13,6 +13,8 @@ export type NetworkObject = Integratable & {
   value: number;
   label: string;
   color: string;
+  lastTouchedTimestamp: number;
+  lastTouchedBySocketId?: string;
   ownerSocketId?: string;
 };
 
