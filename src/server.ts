@@ -1,6 +1,7 @@
 import type { Socket } from "socket.io";
 import type { DefaultEventsMap } from "socket.io/dist/typed-events";
 import { createPubSub } from "create-pubsub";
+import MainLoop from "mainloop.js";
 import {
   accelerate,
   add,
@@ -22,7 +23,6 @@ import {
   gameStateUpdatesPerSecond,
   squareCanvasSizeInPixels,
   ballRadius,
-  gameFramesPerSecond,
   ClientToServerEvents,
   ServerToClientEvents,
   ServerToClientEventName,
@@ -42,11 +42,15 @@ const [publishSocketDisconnected, subscribeToSocketDisconnected] = createPubSub<
 
 const [setNextGameObjectId, , getNextGameObjectId] = createPubSub(0);
 
+const [
+  publishTimePassedSinceLastStateUpdateEmitted,
+  subscribeToTimePassedSinceLastStateUpdateEmitted,
+  getTimePassedSinceLastStateUpdateEmitted,
+] = createPubSub(0);
+
 const socketsConnected = new Map<string, ServerSocket>();
 
 const gameStateUpdateMillisecondsInterval = 1000 / gameStateUpdatesPerSecond;
-
-const physicsUpdateMillisecondsInterval = 1000 / gameFramesPerSecond;
 
 const massOfImmovableObjects = -1;
 
@@ -80,7 +84,7 @@ const tableBottomRailPoints = [
 
 const tableRails = [tableLeftRailPoints, tableRightRailPoints, tableTopRailPoints, tableBottomRailPoints];
 
-const scoreLineDistanceFromCorner = 120;
+const scoreLineDistanceFromCorner = 140;
 
 const scoreLines = [
   [v2(0, scoreLineDistanceFromCorner), v2(scoreLineDistanceFromCorner, 0)],
@@ -109,9 +113,9 @@ const createNetworkObject = (properties?: Partial<NetworkObject>) => {
 
   const gameObject = {
     id,
-    cpos: { x: squareCanvasSizeInPixels / 2, y: squareCanvasSizeInPixels / 2 },
-    ppos: { x: squareCanvasSizeInPixels / 2, y: squareCanvasSizeInPixels / 2 },
-    acel: { x: 0, y: 0 },
+    cpos: v2(),
+    ppos: v2(),
+    acel: v2(),
     radius: 1,
     mass: 1,
     value: 0,
@@ -242,9 +246,22 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
   });
 };
 
-const updatePhysics = () => {
+const emitGameStateToConnectedSockets = () => {
+  socketsConnected.forEach((socket) => {
+    socket.emit(ServerToClientEventName.GameState, { networkObjects });
+  });
+};
+
+const handleUpdateOnTimePassedSinceLastStateUpdateEmitted = (deltaTime: number) => {
+  if (deltaTime > gameStateUpdateMillisecondsInterval) {
+    emitGameStateToConnectedSockets();
+    publishTimePassedSinceLastStateUpdateEmitted(deltaTime - gameStateUpdateMillisecondsInterval);
+  }
+};
+
+const updatePhysics = (deltaTime: number) => {
   networkObjects.forEach((networkObject) => {
-    accelerate(networkObject, physicsUpdateMillisecondsInterval);
+    accelerate(networkObject, deltaTime);
 
     networkObjects
       .filter(
@@ -260,17 +277,16 @@ const updatePhysics = () => {
   });
 };
 
-const emitGameStateToConnectedSockets = () => {
-  socketsConnected.forEach((socket) => {
-    socket.emit(ServerToClientEventName.GameState, { networkObjects });
-  });
-};
-
 const getRandomHexColor = () => {
   const randomInteger = (max: number) => Math.floor(Math.random() * (max + 1));
   const randomRgbColor = () => [randomInteger(255), randomInteger(255), randomInteger(255)];
   const [r, g, b] = randomRgbColor();
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+};
+
+const handleMainLoopUpdate = (deltaTime: number) => {
+  updatePhysics(deltaTime);
+  publishTimePassedSinceLastStateUpdateEmitted(getTimePassedSinceLastStateUpdateEmitted() + deltaTime);
 };
 
 for (let value = 1; value <= 8; value++) {
@@ -285,8 +301,10 @@ for (let value = 1; value <= 8; value++) {
   });
 }
 
+subscribeToTimePassedSinceLastStateUpdateEmitted(handleUpdateOnTimePassedSinceLastStateUpdateEmitted);
 subscribeToSocketDisconnected(handleSocketDisconnected);
 subscribeToSocketConnected(handleSocketConnected);
-setInterval(updatePhysics, physicsUpdateMillisecondsInterval);
-setInterval(emitGameStateToConnectedSockets, gameStateUpdateMillisecondsInterval);
+
+MainLoop.setUpdate(handleMainLoopUpdate).start();
+
 export default { io: publishSocketConnected };

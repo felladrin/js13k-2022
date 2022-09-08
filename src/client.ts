@@ -80,7 +80,7 @@ const acceleratingSound = [, , 999, 0.2, 0.04, 0.15, 4, 2.66, -0.5, 22, , , , 0.
 
 const screamSound = [1.71, , 727, 0.02, 0.03, 0, 3, 0.09, 4.4, -62, , , , , , , 0.19, 0.65, 0.2, 0.51];
 
-const canvasBackgrundSprite = Sprite({
+const tableSprite = Sprite({
   image: tableImage,
 });
 
@@ -124,7 +124,7 @@ const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: 
 };
 
 const renderScene = () => {
-  canvasBackgrundSprite.render();
+  tableSprite.render();
 
   getGameState()?.networkObjects.forEach((networkObject) => {
     const sprite = networkObjectIdToSpriteMap.get(networkObject.id);
@@ -137,9 +137,7 @@ const renderScene = () => {
   });
 };
 
-const startMainLoop = () => {
-  GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw, fps: gameFramesPerSecond }).start();
-};
+const startMainLoop = () => GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw }).start();
 
 const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
   if (!canvasElement.parentElement) return;
