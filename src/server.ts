@@ -78,6 +78,24 @@ const tableBottomRailPoints = [
 
 const tableRails = [tableLeftRailPoints, tableRightRailPoints, tableTopRailPoints, tableBottomRailPoints];
 
+const scoreLineDistanceFromCorner = 120;
+
+const scoreLines = [
+  [v2(0, scoreLineDistanceFromCorner), v2(scoreLineDistanceFromCorner, 0)],
+  [
+    v2(squareCanvasSizeInPixels - scoreLineDistanceFromCorner, 0),
+    v2(squareCanvasSizeInPixels, scoreLineDistanceFromCorner),
+  ],
+  [
+    v2(0, squareCanvasSizeInPixels - scoreLineDistanceFromCorner),
+    v2(scoreLineDistanceFromCorner, squareCanvasSizeInPixels),
+  ],
+  [
+    v2(squareCanvasSizeInPixels, squareCanvasSizeInPixels - scoreLineDistanceFromCorner),
+    v2(squareCanvasSizeInPixels - scoreLineDistanceFromCorner, squareCanvasSizeInPixels),
+  ],
+] as [Vector2, Vector2][];
+
 const getRandomElementFrom = (object: any[] | string) => object[Math.floor(Math.random() * object.length)];
 
 const getRandomSmile = () => `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
@@ -147,12 +165,7 @@ const handleSocketConnected = (socket: ServerSocket) => {
 
 const handleSocketDisconnected = (socket: ServerSocket) => {
   if (socket.data.id) {
-    const id = socket.data.id;
-    const networkObjectIndex = networkObjects.findIndex((target) => target.id === id);
-    if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
-    socketsConnected.forEach((targetSocket) => {
-      targetSocket.emit("objectDeleted", id);
-    });
+    deleteNetworkObject(socket.data as NetworkObject);
   }
   broadcastChatMessage(`📢 ${socket.data.nickname} left.`);
   socketsConnected.delete(socket.id);
@@ -208,6 +221,25 @@ const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
   });
 };
 
+const deleteNetworkObject = (networkObject: NetworkObject) => {
+  const networkObjectIndex = networkObjects.findIndex((target) => target.id === networkObject.id);
+  if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
+  socketsConnected.forEach((targetSocket) => {
+    targetSocket.emit("objectDeleted", networkObject.id);
+  });
+};
+
+const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
+  scoreLines.forEach(([pointA, pointB]) => {
+    if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
+      deleteNetworkObject(networkObject);
+      socketsConnected.forEach((socket) => {
+        socket.emit("score");
+      });
+    }
+  });
+};
+
 const updatePhysics = () => {
   networkObjects.forEach((networkObject) => {
     accelerate(networkObject, physicsUpdateMillisecondsInterval);
@@ -219,6 +251,8 @@ const updatePhysics = () => {
       .forEach((otherNetworkObject) => handleCollision(networkObject, otherNetworkObject));
 
     checkCollisionWithTableEdges(networkObject);
+
+    checkCollisionWithScoreLines(networkObject);
 
     inertia(networkObject);
   });
