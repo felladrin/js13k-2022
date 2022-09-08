@@ -11,6 +11,8 @@ import {
   ServerToClientEvents,
   ClientToServerEvents,
   ballRadius,
+  ClientToServerEventName,
+  ServerToClientEventName,
 } from "./shared";
 
 const gameStateUpdateFramesInterval = gameFramesPerSecond / gameStateUpdatesPerSecond;
@@ -96,7 +98,7 @@ const prepareGame = () => {
 const emitPointerPressedIfNeeded = () => {
   if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / gameStateUpdatesPerSecond) return;
   const { x, y } = getPointer();
-  socket.emit("pointerPressed", [x, y]);
+  socket.emit(ClientToServerEventName.Click, [x, y]);
   publishLastTimeEmittedPointerPressed(Date.now());
 };
 
@@ -220,7 +222,7 @@ const getHoursFromLocalTime = () => new Date().getHours().toString().padStart(2,
 const sendChatMessage = () => {
   const messageToSend = chatInputField.value.trim();
   if (!messageToSend.length) return;
-  socket.emit("chat", messageToSend);
+  socket.emit(ClientToServerEventName.Message, messageToSend);
   chatInputField.value = "";
 };
 
@@ -238,7 +240,7 @@ const handleWindowResized = () => {
 };
 
 const handleJoinButtonClicked = () => {
-  socket.emit("nickname", chosenNickname.value);
+  socket.emit(ClientToServerEventName.Nickname, chosenNickname.value);
   welcomePanel.remove();
 };
 
@@ -275,7 +277,7 @@ window.addEventListener("click", enableSounds, { once: true });
 chatButton.addEventListener("click", sendChatMessage);
 chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
 joinButton.addEventListener("click", handleJoinButtonClicked);
-socket.on("chat", handleChatMessageReceived);
-socket.on("gameState", publishGameStateUpdated);
-socket.on("objectDeleted", handleObjectDeleted);
-socket.on("score", () => playSound(scoreSound));
+socket.on(ServerToClientEventName.Message, handleChatMessageReceived);
+socket.on(ServerToClientEventName.GameState, publishGameStateUpdated);
+socket.on(ServerToClientEventName.Deletion, handleObjectDeleted);
+socket.on(ServerToClientEventName.Score, () => playSound(scoreSound));

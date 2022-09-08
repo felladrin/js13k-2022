@@ -25,6 +25,8 @@ import {
   gameFramesPerSecond,
   ClientToServerEvents,
   ServerToClientEvents,
+  ServerToClientEventName,
+  ClientToServerEventName,
 } from "./shared";
 
 type SocketData = NetworkObject & {
@@ -173,21 +175,21 @@ const handleSocketDisconnected = (socket: ServerSocket) => {
 
 const broadcastChatMessage = (message: string) => {
   socketsConnected.forEach((socket) => {
-    socket.emit("chat", message);
+    socket.emit(ServerToClientEventName.Message, message);
   });
 };
 
 const setupSocketListeners = (socket: ServerSocket) => {
   socket.on("disconnect", () => publishSocketDisconnected(socket));
-  socket.on("chat", (message: string) => {
+  socket.on(ClientToServerEventName.Message, (message: string) => {
     broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
   });
-  socket.on("nickname", (nickname) => {
+  socket.on(ClientToServerEventName.Nickname, (nickname) => {
     const trimmedNickname = nickname.trim();
     if (trimmedNickname.length) socket.data.nickname = trimmedNickname;
     broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
   });
-  socket.on("pointerPressed", ([x, y]: [x: number, y: number]) => {
+  socket.on(ClientToServerEventName.Click, ([x, y]: [x: number, y: number]) => {
     if (!socket.data.cpos || !socket.data.acel) return;
     const accelerationVector = v2();
     sub(accelerationVector, v2(x, y), socket.data.cpos);
@@ -225,7 +227,7 @@ const deleteNetworkObject = (networkObject: NetworkObject) => {
   const networkObjectIndex = networkObjects.findIndex((target) => target.id === networkObject.id);
   if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
   socketsConnected.forEach((targetSocket) => {
-    targetSocket.emit("objectDeleted", networkObject.id);
+    targetSocket.emit(ServerToClientEventName.Deletion, networkObject.id);
   });
 };
 
@@ -234,7 +236,7 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
       deleteNetworkObject(networkObject);
       socketsConnected.forEach((socket) => {
-        socket.emit("score");
+        socket.emit(ServerToClientEventName.Score);
       });
     }
   });
@@ -260,7 +262,7 @@ const updatePhysics = () => {
 
 const emitGameStateToConnectedSockets = () => {
   socketsConnected.forEach((socket) => {
-    socket.emit("gameState", { networkObjects });
+    socket.emit(ServerToClientEventName.GameState, { networkObjects });
   });
 };
 

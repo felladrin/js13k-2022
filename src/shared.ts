@@ -22,15 +22,28 @@ export type GameState = {
   networkObjects: NetworkObject[];
 };
 
+export enum ServerToClientEventName {
+  GameState = "A",
+  Message = "B",
+  Deletion = "C",
+  Score = "D",
+}
+
+export enum ClientToServerEventName {
+  Message = "A",
+  Nickname = "B",
+  Click = "C",
+}
+
 export interface ServerToClientEvents {
-  chat: (message: string) => void;
-  gameState: (gameState: GameState) => void;
-  objectDeleted: (id: number) => void;
-  score: () => void;
+  [ServerToClientEventName.Message]: (message: string) => void;
+  [ServerToClientEventName.GameState]: (gameState: GameState) => void;
+  [ServerToClientEventName.Deletion]: (id: number) => void;
+  [ServerToClientEventName.Score]: () => void;
 }
 
 export interface ClientToServerEvents {
-  chat: (message: string) => void;
-  nickname: (nickname: string) => void;
-  pointerPressed: (coordinates: [x: number, y: number]) => void;
+  [ClientToServerEventName.Message]: (message: string) => void;
+  [ClientToServerEventName.Nickname]: (nickname: string) => void;
+  [ClientToServerEventName.Click]: (coordinates: [x: number, y: number]) => void;
 }
