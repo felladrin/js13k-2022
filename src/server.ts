@@ -196,15 +196,16 @@ const attachNetworkObjectToSocket = (socket: ServerSocket) => {
     radius: ballRadius,
     ownerSocketId: socket.id,
     color: getRandomHexColor(),
+    value: 9,
   });
 
   if (!socket.data.nickname) socket.data.nickname = `Player${socket.data.networkObject.id}`;
 };
 
-const getNumberOfBallsWithValueOnTheTable = () => networkObjects.filter((object) => object.value).length;
+const getNumberOfNotOwnedBallsOnTable = () => networkObjects.filter((object) => !object.ownerSocketId).length;
 
 const handleSocketConnected = (socket: ServerSocket) => {
-  if (getNumberOfBallsWithValueOnTheTable() == 0) addBallsWithValueToTheTable();
+  if (getNumberOfNotOwnedBallsOnTable() == 0) addNotOwnedBallsToTheTable();
 
   attachNetworkObjectToSocket(socket);
 
@@ -287,19 +288,19 @@ const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
 
 const deleteNetworkObject = (networkObject: NetworkObject) => {
   const networkObjectIndex = networkObjects.findIndex((target) => target.id === networkObject.id);
-  
+
   if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
-  
+
   socketsConnected.forEach((targetSocket) => {
     targetSocket.emit(ServerToClientEventName.Deletion, networkObject.id);
   });
 
-  if (getNumberOfBallsWithValueOnTheTable() == 0) addBallsWithValueToTheTable();
+  if (getNumberOfNotOwnedBallsOnTable() == 0) addNotOwnedBallsToTheTable();
 
   if (networkObject.ownerSocketId) {
     const socket = socketsConnected.get(networkObject.ownerSocketId);
     if (socket) {
-      socket.data.score = 0;
+      socket.data.score = Math.max(0, (socket.data.score as number) - networkObject.value);
       attachNetworkObjectToSocket(socket);
     }
   }
@@ -397,7 +398,7 @@ const handleMainLoopUpdate = (deltaTime: number) => {
   publishTimePassedSinceLastScoreboardUpdate(getTimePassedSinceLastScoreboardUpdate() + deltaTime);
 };
 
-const addBallsWithValueToTheTable = () => {
+const addNotOwnedBallsToTheTable = () => {
   for (let value = 1; value <= 8; value++) {
     const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
     createNetworkObject({
