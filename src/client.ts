@@ -12,6 +12,7 @@ import {
   ballRadius,
   ClientToServerEventName,
   ServerToClientEventName,
+  Scoreboard,
 } from "./shared";
 
 const gameFramesPerSecond = 60;
@@ -22,11 +23,13 @@ const networkObjectIdToSpriteMap = new Map<number, Sprite>();
 
 const { canvas, context } = init(document.querySelector("#canvas") as HTMLCanvasElement);
 
-const chatHistory = document.querySelector("#b textarea") as HTMLTextAreaElement;
+const scoreboardTextArea = document.querySelector("#b1 textarea") as HTMLTextAreaElement;
 
-const chatInputField = document.querySelector("#b input") as HTMLInputElement;
+const chatHistory = document.querySelector("#b2 textarea") as HTMLTextAreaElement;
 
-const chatButton = document.querySelector("#b button") as HTMLButtonElement;
+const chatInputField = document.querySelector("#b3 input") as HTMLInputElement;
+
+const chatButton = document.querySelector("#b4 button") as HTMLButtonElement;
 
 const tableImage = document.querySelector("img[src='table.webp']") as HTMLImageElement;
 
@@ -154,11 +157,9 @@ const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
 };
 
 const handleNetworkObjectsReceived = (networkObjects: NetworkObject[]) => {
-  networkObjects.forEach((networkObject) => {
-    const sprite = createSpriteForNetworkObject(networkObject);
+  networkObjectIdToSpriteMap.clear();
 
-    if (networkObject.ownerSocketId === socket.id) setOwnSprite(sprite);
-  });
+  networkObjects.forEach((networkObject) => createSpriteForNetworkObject(networkObject));
 };
 
 const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
@@ -195,6 +196,9 @@ const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
   sprite.addChild(ballLabel);
 
   networkObjectIdToSpriteMap.set(networkObject.id, sprite);
+
+  if (networkObject.ownerSocketId === socket.id) setOwnSprite(sprite);
+
   return sprite;
 };
 
@@ -210,7 +214,7 @@ const stopSprite = (sprite: Sprite) => {
 
 const handleChatMessageReceived = (message: string) => {
   playSound(messageReceivedSound);
-  chatHistory.value += `\n[${getHoursFromLocalTime()}:${getMinutesFromLocalTime()}] ${message}`;
+  chatHistory.value += `[${getHoursFromLocalTime()}:${getMinutesFromLocalTime()}] ${message}\n`;
   if (chatHistory !== document.activeElement) chatHistory.scrollTop = chatHistory.scrollHeight;
 };
 
@@ -270,10 +274,17 @@ const handlePositionsUpdated = (positions: NetworkObjectsPositions): void => {
     const sprite = networkObjectIdToSpriteMap.get(objectId);
     if (sprite) {
       const expectedPosition = Vector(x, y);
-      Math.abs(expectedPosition.distance(sprite.position)) > 1
+      expectedPosition.distance(sprite.position) != 0
         ? setSpriteVelocity(expectedPosition, sprite)
         : stopSprite(sprite);
     }
+  });
+};
+
+const handleScoreboardUpdated = (scoreboard: Scoreboard): void => {
+  scoreboardTextArea.value = "SCOREBOARD\n\n";
+  scoreboard.forEach(([, nick, score]) => {
+    scoreboardTextArea.value += `${score}\t${nick}\n`;
   });
 };
 
@@ -294,3 +305,4 @@ socket.on(ServerToClientEventName.Positions, handlePositionsUpdated);
 socket.on(ServerToClientEventName.Creation, createSpriteForNetworkObject);
 socket.on(ServerToClientEventName.Deletion, handleObjectDeleted);
 socket.on(ServerToClientEventName.Scored, () => playSound(scoreSound));
+socket.on(ServerToClientEventName.Scoreboard, handleScoreboardUpdated);

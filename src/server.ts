@@ -31,7 +31,8 @@ import {
   Scoreboard,
 } from "./shared";
 
-type SocketData = NetworkObject & {
+type SocketData = {
+  networkObject: NetworkObject;
   nickname: string;
   score: number;
 };
@@ -186,29 +187,45 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
   );
 };
 
-const handleSocketConnected = (socket: ServerSocket) => {
+const attachNetworkObjectToSocket = (socket: ServerSocket) => {
   const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
-  socket.data = createNetworkObject({
+
+  socket.data.networkObject = createNetworkObject({
     cpos: copy(v2(), randomPosition),
     ppos: copy(v2(), randomPosition),
     radius: ballRadius,
     ownerSocketId: socket.id,
     color: getRandomHexColor(),
   });
-  socket.data.nickname = `Player #${socket.data.id}`;
+
+  if (!socket.data.nickname) socket.data.nickname = `Player${socket.data.networkObject.id}`;
+};
+
+const getNumberOfBallsWithValueOnTheTable = () => networkObjects.filter((object) => object.value).length;
+
+const handleSocketConnected = (socket: ServerSocket) => {
+  if (getNumberOfBallsWithValueOnTheTable() == 0) addBallsWithValueToTheTable();
+
+  attachNetworkObjectToSocket(socket);
+
   socket.data.score = 0;
+
   socket.emit(
     ServerToClientEventName.Message,
     `📢 Welcome, ${socket.data.nickname}!\nTo change your nickname, type '/nick <name>' on the text field below.`
   );
+
   socket.emit(ServerToClientEventName.Objects, networkObjects);
+
   broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
+
   socketsConnected.set(socket.id, socket);
+
   setupSocketListeners(socket);
 };
 
 const handleSocketDisconnected = (socket: ServerSocket) => {
-  if (socket.data.id) {
+  if (socket.data.networkObject?.id) {
     deleteNetworkObject(socket.data as NetworkObject);
   }
   broadcastChatMessage(`📢 ${socket.data.nickname} left.`);
@@ -235,13 +252,13 @@ const setupSocketListeners = (socket: ServerSocket) => {
     }
   });
   socket.on(ClientToServerEventName.Click, ([x, y]: [x: number, y: number]) => {
-    if (!socket.data.cpos || !socket.data.acel) return;
+    if (!socket.data.networkObject || !socket.data.networkObject.cpos || !socket.data.networkObject.acel) return;
     const accelerationVector = v2();
-    sub(accelerationVector, v2(x, y), socket.data.cpos);
+    sub(accelerationVector, v2(x, y), socket.data.networkObject.cpos);
     normalize(accelerationVector, accelerationVector);
-    const elasticityFactor = 20 * (distance(v2(x, y), socket.data.cpos) / squareCanvasSizeInPixels);
+    const elasticityFactor = 20 * (distance(v2(x, y), socket.data.networkObject.cpos) / squareCanvasSizeInPixels);
     scale(accelerationVector, accelerationVector, elasticityFactor);
-    add(socket.data.acel, socket.data.acel, accelerationVector);
+    add(socket.data.networkObject.acel, socket.data.networkObject.acel, accelerationVector);
   });
 };
 
@@ -270,10 +287,22 @@ const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
 
 const deleteNetworkObject = (networkObject: NetworkObject) => {
   const networkObjectIndex = networkObjects.findIndex((target) => target.id === networkObject.id);
+  
   if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
+  
   socketsConnected.forEach((targetSocket) => {
     targetSocket.emit(ServerToClientEventName.Deletion, networkObject.id);
   });
+
+  if (getNumberOfBallsWithValueOnTheTable() == 0) addBallsWithValueToTheTable();
+
+  if (networkObject.ownerSocketId) {
+    const socket = socketsConnected.get(networkObject.ownerSocketId);
+    if (socket) {
+      socket.data.score = 0;
+      attachNetworkObjectToSocket(socket);
+    }
+  }
 };
 
 const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
@@ -312,7 +341,7 @@ const emitObjectsPositionsToConnectedSockets = () => {
 
 const emitScoreboardToConnectedSockets = () => {
   const scoreboard = Array.from(socketsConnected.values())
-    .sort((a, b) => (a.data.score as number) - (b.data.score as number))
+    .sort((a, b) => (b.data.score as number) - (a.data.score as number))
     .reduce<Scoreboard>((scoreboard, socket) => {
       scoreboard.push([socket.id, socket.data.nickname as string, socket.data.score as number]);
       return scoreboard;
@@ -368,7 +397,7 @@ const handleMainLoopUpdate = (deltaTime: number) => {
   publishTimePassedSinceLastScoreboardUpdate(getTimePassedSinceLastScoreboardUpdate() + deltaTime);
 };
 
-for (let i = 0; i < 2; i++) {
+const addBallsWithValueToTheTable = () => {
   for (let value = 1; value <= 8; value++) {
     const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
     createNetworkObject({
@@ -380,7 +409,7 @@ for (let i = 0; i < 2; i++) {
       color: ballColors[value],
     });
   }
-}
+};
 
 subscribeToTimePassedSinceLastScoreboardUpdate(handleUpdateOnTimePassedSinceLastScoreboardUpdate);
 subscribeToTimePassedSinceLastStateUpdateEmitted(handleUpdateOnTimePassedSinceLastStateUpdateEmitted);
