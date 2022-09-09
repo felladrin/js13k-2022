@@ -42,12 +42,12 @@ export interface ServerToClientEvents {
   [ServerToClientEventName.Objects]: (objects: NetworkObject[]) => void;
   [ServerToClientEventName.Creation]: (object: NetworkObject) => void;
   [ServerToClientEventName.Deletion]: (id: number) => void;
-  [ServerToClientEventName.Scored]: () => void;
+  [ServerToClientEventName.Scored]: (value: number, positionX: number, positionY: number) => void;
   [ServerToClientEventName.Positions]: (objectsPositions: NetworkObjectsPositions) => void;
   [ServerToClientEventName.Scoreboard]: (scoreboard: Scoreboard) => void;
 }
 
 export interface ClientToServerEvents {
   [ClientToServerEventName.Message]: (message: string) => void;
-  [ClientToServerEventName.Click]: (coordinates: [x: number, y: number]) => void;
+  [ClientToServerEventName.Click]: (positionX: number, positionY: number) => void;
 }

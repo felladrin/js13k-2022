@@ -252,7 +252,7 @@ const setupSocketListeners = (socket: ServerSocket) => {
       broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
     }
   });
-  socket.on(ClientToServerEventName.Click, ([x, y]: [x: number, y: number]) => {
+  socket.on(ClientToServerEventName.Click, (x, y) => {
     if (!socket.data.networkObject || !socket.data.networkObject.cpos || !socket.data.networkObject.acel) return;
     const accelerationVector = v2();
     sub(accelerationVector, v2(x, y), socket.data.networkObject.cpos);
@@ -300,7 +300,9 @@ const deleteNetworkObject = (networkObject: NetworkObject) => {
   if (networkObject.ownerSocketId) {
     const socket = socketsConnected.get(networkObject.ownerSocketId);
     if (socket) {
-      socket.data.score = Math.max(0, (socket.data.score as number) - networkObject.value);
+      const negativeScore = -networkObject.value;
+      socket.data.score = Math.max(0, (socket.data.score as number) + negativeScore);
+      socket.emit(ServerToClientEventName.Scored, negativeScore, networkObject.cpos.x, networkObject.cpos.y);
       attachNetworkObjectToSocket(socket);
     }
   }
@@ -312,11 +314,11 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
       deleteNetworkObject(networkObject);
 
       if (networkObject.lastTouchedBySocketId) {
-        const socketThatScored = socketsConnected.get(networkObject.lastTouchedBySocketId);
+        const socket = socketsConnected.get(networkObject.lastTouchedBySocketId);
 
-        if (socketThatScored) {
-          socketThatScored.data.score = (socketThatScored.data.score as number) + networkObject.value;
-          socketThatScored.emit(ServerToClientEventName.Scored);
+        if (socket) {
+          socket.data.score = (socket.data.score as number) + networkObject.value;
+          socket.emit(ServerToClientEventName.Scored, networkObject.value, networkObject.cpos.x, networkObject.cpos.y);
         }
       }
     }
