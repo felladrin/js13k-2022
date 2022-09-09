@@ -19,7 +19,8 @@ export type NetworkObject = Integratable & {
 };
 
 export type NetworkObjectsPositions = [objectId: number, x: number, y: number][];
-export type Scoreboard = [socketId: string, nick: string, score: number][];
+
+export type Scoreboard = [nick: string, score: number][];
 
 export enum ServerToClientEventName {
   Message = "A",

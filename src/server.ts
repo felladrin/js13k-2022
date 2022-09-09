@@ -59,7 +59,7 @@ const [
 
 const socketsConnected = new Map<string, ServerSocket>();
 
-const scoreboardUpdateMillisecondsInterval = 1500;
+const scoreboardUpdateMillisecondsInterval = 1000;
 
 const objectsPositionsUpdateMillisecondsInterval = 1000 / networkObjectsUpdatesPerSecond;
 
@@ -344,7 +344,7 @@ const emitScoreboardToConnectedSockets = () => {
   const scoreboard = Array.from(socketsConnected.values())
     .sort((a, b) => (b.data.score as number) - (a.data.score as number))
     .reduce<Scoreboard>((scoreboard, socket) => {
-      scoreboard.push([socket.id, socket.data.nickname as string, socket.data.score as number]);
+      scoreboard.push([socket.data.nickname as string, socket.data.score as number]);
       return scoreboard;
     }, []);
 

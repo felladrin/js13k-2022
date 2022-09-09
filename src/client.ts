@@ -283,7 +283,7 @@ const handlePositionsUpdated = (positions: NetworkObjectsPositions): void => {
 
 const handleScoreboardUpdated = (scoreboard: Scoreboard): void => {
   scoreboardTextArea.value = "SCOREBOARD\n\n";
-  scoreboard.forEach(([, nick, score]) => {
+  scoreboard.forEach(([nick, score]) => {
     scoreboardTextArea.value += `${score}\t${nick}\n`;
   });
 };
