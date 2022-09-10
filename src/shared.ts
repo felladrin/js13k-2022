@@ -6,7 +6,7 @@ export const ballRadius = 14;
 
 export const squareCanvasSizeInPixels = 680;
 
-export type NetworkObject = Integratable & {
+export type Ball = Integratable & {
   id: number;
   radius: number;
   mass: number;
@@ -18,9 +18,9 @@ export type NetworkObject = Integratable & {
   ownerSocketId?: string;
 };
 
-export type NetworkObjectsPositions = [objectId: number, x: number, y: number][];
+export type BallsPositions = [objectId: number, x: number, y: number][];
 
-export type Scoreboard = [nick: string, score: number][];
+export type Scoreboard = [nick: string, score: number, tableId: number][];
 
 export enum ServerToClientEventName {
   Message = "A",
@@ -39,11 +39,11 @@ export enum ClientToServerEventName {
 
 export interface ServerToClientEvents {
   [ServerToClientEventName.Message]: (message: string) => void;
-  [ServerToClientEventName.Objects]: (objects: NetworkObject[]) => void;
-  [ServerToClientEventName.Creation]: (object: NetworkObject) => void;
+  [ServerToClientEventName.Objects]: (objects: Ball[]) => void;
+  [ServerToClientEventName.Creation]: (object: Ball) => void;
   [ServerToClientEventName.Deletion]: (id: number) => void;
   [ServerToClientEventName.Scored]: (value: number, positionX: number, positionY: number) => void;
-  [ServerToClientEventName.Positions]: (objectsPositions: NetworkObjectsPositions) => void;
+  [ServerToClientEventName.Positions]: (ballsPositions: BallsPositions) => void;
   [ServerToClientEventName.Scoreboard]: (scoreboard: Scoreboard) => void;
 }
 

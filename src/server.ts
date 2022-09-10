@@ -16,10 +16,9 @@ import {
   Vector2,
   distance,
   scale,
-  copy,
 } from "pocket-physics";
 import {
-  NetworkObject,
+  Ball,
   networkObjectsUpdatesPerSecond,
   squareCanvasSizeInPixels,
   ballRadius,
@@ -27,23 +26,32 @@ import {
   ServerToClientEvents,
   ServerToClientEventName,
   ClientToServerEventName,
-  NetworkObjectsPositions,
+  BallsPositions,
   Scoreboard,
 } from "./shared";
 
 type SocketData = {
-  networkObject: NetworkObject;
+  ball: Ball;
   nickname: string;
   score: number;
+  table: Table;
 };
 
-type ServerSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
 
-const [publishSocketConnected, subscribeToSocketConnected] = createPubSub<ServerSocket>();
+type Table = {
+  id: number;
+  sockets: Map<string, GameSocket>;
+  balls: Map<number, Ball>;
+};
 
-const [publishSocketDisconnected, subscribeToSocketDisconnected] = createPubSub<ServerSocket>();
+let uniqueIdCounter = 1;
 
-const [setNextGameObjectId, , getNextGameObjectId] = createPubSub(0);
+const getUniqueId = () => {
+  const id = uniqueIdCounter;
+  id < Number.MAX_SAFE_INTEGER ? uniqueIdCounter++ : 1;
+  return id;
+};
 
 const [
   publishTimePassedSinceLastStateUpdateEmitted,
@@ -57,7 +65,7 @@ const [
   getTimePassedSinceLastScoreboardUpdate,
 ] = createPubSub(0);
 
-const socketsConnected = new Map<string, ServerSocket>();
+const maxSocketsPerTable = 4;
 
 const scoreboardUpdateMillisecondsInterval = 1000;
 
@@ -65,9 +73,11 @@ const objectsPositionsUpdateMillisecondsInterval = 1000 / networkObjectsUpdatesP
 
 const massOfImmovableObjects = -1;
 
-const networkObjects = [] as NetworkObject[];
+const tables = new Map<number, Table>();
 
 const ballColors = ["#fff", "#ffff00", "#0000ff", "#ff0000", "#aa00aa", "#ffaa00", "#1f952f", "#550000", "#1a191e"];
+
+const collisionDamping = 0.9;
 
 const cornerPocketSize = 100;
 
@@ -117,40 +127,34 @@ const scoreLines = [
 
 const getRandomElementFrom = (object: any[] | string) => object[Math.floor(Math.random() * object.length)];
 
-const getRandomSmile = () => `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
+const getRandomTextualSmile = () => `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
 
-const createNetworkObject = (properties?: Partial<NetworkObject>) => {
-  const id = getNextGameObjectId();
-
-  setNextGameObjectId(id + 1);
-
-  const gameObject = {
-    id,
+const addBallToTable = (table: Table, properties?: Partial<Ball>) => {
+  const ball = {
+    id: getUniqueId(),
     cpos: v2(),
     ppos: v2(),
     acel: v2(),
     radius: 1,
     mass: 1,
     value: 0,
-    label: getRandomSmile(),
+    label: getRandomTextualSmile(),
     lastTouchedTimestamp: Date.now(),
     ...properties,
-  } as NetworkObject;
+  } as Ball;
 
-  networkObjects.push(gameObject);
+  table.balls.set(ball.id, ball);
 
-  socketsConnected.forEach((socket) => {
-    socket.emit(ServerToClientEventName.Creation, gameObject);
-  });
+  table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Creation, ball));
 
-  return gameObject;
+  return ball;
 };
 
-const getRandomNumberInsideCanvasSize = () =>
+const getRandomPositionForBallOnTable = () =>
   tablePadding + ballRadius + Math.floor(Math.random() * (squareCanvasSizeInPixels - (tablePadding + ballRadius) * 2));
 
-const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) => {
-  return overlapCircleCircle(
+const isColliding = (firstObject: Ball, secondObject: Ball) =>
+  overlapCircleCircle(
     firstObject.cpos.x,
     firstObject.cpos.y,
     firstObject.radius,
@@ -158,9 +162,8 @@ const isColliding = (firstObject: NetworkObject, secondObject: NetworkObject) =>
     secondObject.cpos.y,
     secondObject.radius
   );
-};
 
-const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject) => {
+const handleCollision = (firstObject: Ball, secondObject: Ball) => {
   if (firstObject.ownerSocketId || secondObject.ownerSocketId) {
     if (firstObject.ownerSocketId) secondObject.lastTouchedBySocketId = firstObject.ownerSocketId;
 
@@ -175,7 +178,7 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
 
   firstObject.lastTouchedTimestamp = secondObject.lastTouchedTimestamp = Date.now();
 
-  return collideCircleCircle(
+  collideCircleCircle(
     firstObject,
     firstObject.radius,
     firstObject.mass,
@@ -183,32 +186,41 @@ const handleCollision = (firstObject: NetworkObject, secondObject: NetworkObject
     secondObject.radius,
     secondObject.mass,
     true,
-    0.9
+    collisionDamping
   );
 };
 
-const attachNetworkObjectToSocket = (socket: ServerSocket) => {
-  const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
+const createBallForSocket = (socket: GameSocket) => {
+  if (!socket.data.table) return;
 
-  socket.data.networkObject = createNetworkObject({
-    cpos: copy(v2(), randomPosition),
-    ppos: copy(v2(), randomPosition),
+  const x = getRandomPositionForBallOnTable();
+  const y = getRandomPositionForBallOnTable();
+
+  const ball = addBallToTable(socket.data.table, {
+    cpos: { x, y },
+    ppos: { x, y },
     radius: ballRadius,
     ownerSocketId: socket.id,
     color: getRandomHexColor(),
     value: 9,
   });
 
-  if (!socket.data.nickname) socket.data.nickname = `Player${socket.data.networkObject.id}`;
+  socket.data.ball = ball;
 };
 
-const getNumberOfNotOwnedBallsOnTable = () => networkObjects.filter((object) => !object.ownerSocketId).length;
+const deleteBallFromSocket = (socket: GameSocket) => {
+  if (!socket.data.table || !socket.data.ball) return;
 
-const handleSocketConnected = (socket: ServerSocket) => {
-  if (getNumberOfNotOwnedBallsOnTable() == 0) addNotOwnedBallsToTheTable();
+  deleteBallFromTable(socket.data.ball, socket.data.table);
 
-  attachNetworkObjectToSocket(socket);
+  socket.data.ball = undefined;
+};
 
+const getNumberOfNotOwnedBallsOnTable = (table: Table) =>
+  Array.from(table.balls.values()).filter((ball) => !ball.ownerSocketId).length;
+
+const handleSocketConnected = (socket: GameSocket) => {
+  socket.data.nickname = `Player${getUniqueId()}`;
   socket.data.score = 0;
 
   socket.emit(
@@ -216,54 +228,55 @@ const handleSocketConnected = (socket: ServerSocket) => {
     `📢 Welcome, ${socket.data.nickname}!\nTo change your nickname, type '/nick <name>' on the text field below.`
   );
 
-  socket.emit(ServerToClientEventName.Objects, networkObjects);
+  const table =
+    Array.from(tables.values()).find((currentTable) => currentTable.sockets.size < maxSocketsPerTable) ?? createTable();
 
-  broadcastChatMessage(`📢 ${socket.data.nickname} joined!`);
-
-  socketsConnected.set(socket.id, socket);
+  addSocketToTable(socket, table);
 
   setupSocketListeners(socket);
 };
 
-const handleSocketDisconnected = (socket: ServerSocket) => {
-  if (socket.data.networkObject?.id) {
-    deleteNetworkObject(socket.data as NetworkObject);
-  }
-  broadcastChatMessage(`📢 ${socket.data.nickname} left.`);
-  socketsConnected.delete(socket.id);
+const handleSocketDisconnected = (socket: GameSocket) => {
+  if (!socket.data.table) return;
+  removeSocketFromTable(socket, socket.data.table);
 };
 
-const broadcastChatMessage = (message: string) => {
-  socketsConnected.forEach((socket) => {
-    socket.emit(ServerToClientEventName.Message, message);
-  });
+const broadcastChatMessageToTable = (message: string, table: Table) =>
+  table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Message, message));
+
+const broadcastChatMessageToAllTables = (message: string) =>
+  tables.forEach((table) => broadcastChatMessageToTable(message, table));
+
+const accelerateBallFromSocket = (x: number, y: number, socket: GameSocket) => {
+  if (!socket.data.ball) return;
+  const accelerationVector = v2();
+  sub(accelerationVector, v2(x, y), socket.data.ball.cpos);
+  normalize(accelerationVector, accelerationVector);
+  const elasticityFactor = 20 * (distance(v2(x, y), socket.data.ball.cpos) / squareCanvasSizeInPixels);
+  scale(accelerationVector, accelerationVector, elasticityFactor);
+  add(socket.data.ball.acel, socket.data.ball.acel, accelerationVector);
 };
 
-const setupSocketListeners = (socket: ServerSocket) => {
-  socket.on("disconnect", () => publishSocketDisconnected(socket));
-  socket.on(ClientToServerEventName.Message, (message: string) => {
-    if (message.startsWith("/nick ")) {
-      const trimmedNickname = message.replace("/nick ", "").trim().substring(0, maximumNicknameLength);
-      if (trimmedNickname.length) {
-        broadcastChatMessage(`📢 ${socket.data.nickname} changed nickname to ${trimmedNickname}!`);
-        socket.data.nickname = trimmedNickname;
-      }
-    } else {
-      broadcastChatMessage(`💬 ${socket.data.nickname}: ${message}`);
+const handleMessageReceivedFromSocket = (message: string, socket: GameSocket) => {
+  if (message.startsWith("/nick ")) {
+    const trimmedNickname = message.replace("/nick ", "").trim().substring(0, maximumNicknameLength);
+
+    if (trimmedNickname.length) {
+      broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} is now known as ${trimmedNickname}!`);
+      socket.data.nickname = trimmedNickname;
     }
-  });
-  socket.on(ClientToServerEventName.Click, (x, y) => {
-    if (!socket.data.networkObject || !socket.data.networkObject.cpos || !socket.data.networkObject.acel) return;
-    const accelerationVector = v2();
-    sub(accelerationVector, v2(x, y), socket.data.networkObject.cpos);
-    normalize(accelerationVector, accelerationVector);
-    const elasticityFactor = 20 * (distance(v2(x, y), socket.data.networkObject.cpos) / squareCanvasSizeInPixels);
-    scale(accelerationVector, accelerationVector, elasticityFactor);
-    add(socket.data.networkObject.acel, socket.data.networkObject.acel, accelerationVector);
-  });
+  } else {
+    broadcastChatMessageToAllTables(`💬 ${socket.data.nickname}: ${message}`);
+  }
 };
 
-const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
+const setupSocketListeners = (socket: GameSocket) => {
+  socket.on("disconnect", () => handleSocketDisconnected(socket));
+  socket.on(ClientToServerEventName.Message, (message) => handleMessageReceivedFromSocket(message, socket));
+  socket.on(ClientToServerEventName.Click, (x, y) => accelerateBallFromSocket(x, y, socket));
+};
+
+const checkCollisionWithTableEdges = (networkObject: Ball) => {
   tableRails.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB))
       collideCircleEdge(
@@ -281,44 +294,42 @@ const checkCollisionWithTableEdges = (networkObject: NetworkObject) => {
         },
         massOfImmovableObjects,
         true,
-        0.9
+        collisionDamping
       );
   });
 };
 
-const deleteNetworkObject = (networkObject: NetworkObject) => {
-  const networkObjectIndex = networkObjects.findIndex((target) => target.id === networkObject.id);
-
-  if (networkObjectIndex >= 0) networkObjects.splice(networkObjectIndex, 1);
-
-  socketsConnected.forEach((targetSocket) => {
-    targetSocket.emit(ServerToClientEventName.Deletion, networkObject.id);
-  });
-
-  if (getNumberOfNotOwnedBallsOnTable() == 0) addNotOwnedBallsToTheTable();
-
-  if (networkObject.ownerSocketId) {
-    const socket = socketsConnected.get(networkObject.ownerSocketId);
-    if (socket) {
-      const negativeScore = -networkObject.value;
-      socket.data.score = Math.max(0, (socket.data.score as number) + negativeScore);
-      socket.emit(ServerToClientEventName.Scored, negativeScore, networkObject.cpos.x, networkObject.cpos.y);
-      attachNetworkObjectToSocket(socket);
-    }
+const deleteBallFromTable = (ball: Ball, table: Table) => {
+  if (table.balls.has(ball.id)) {
+    table.balls.delete(ball.id);
+    table.sockets.forEach((targetSocket) => targetSocket.emit(ServerToClientEventName.Deletion, ball.id));
   }
+
+  if (getNumberOfNotOwnedBallsOnTable(table) == 0) addNotOwnedBallsToTable(table);
 };
 
-const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
+const checkCollisionWithScoreLines = (ball: Ball, table: Table) => {
   scoreLines.forEach(([pointA, pointB]) => {
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB)) {
-      deleteNetworkObject(networkObject);
+    if (rewindToCollisionPoint(ball, ball.radius, pointA, pointB)) {
+      deleteBallFromTable(ball, table);
 
-      if (networkObject.lastTouchedBySocketId) {
-        const socket = socketsConnected.get(networkObject.lastTouchedBySocketId);
+      if (ball.ownerSocketId) {
+        const socket = table.sockets.get(ball.ownerSocketId);
 
         if (socket) {
-          socket.data.score = (socket.data.score as number) + networkObject.value;
-          socket.emit(ServerToClientEventName.Scored, networkObject.value, networkObject.cpos.x, networkObject.cpos.y);
+          const negativeScore = -ball.value;
+          socket.data.score = Math.max(0, (socket.data.score as number) + negativeScore);
+          socket.emit(ServerToClientEventName.Scored, negativeScore, ball.cpos.x, ball.cpos.y);
+          createBallForSocket(socket);
+        }
+      }
+
+      if (ball.lastTouchedBySocketId) {
+        const socket = table.sockets.get(ball.lastTouchedBySocketId);
+
+        if (socket) {
+          socket.data.score = (socket.data.score as number) + ball.value;
+          socket.emit(ServerToClientEventName.Scored, ball.value, ball.cpos.x, ball.cpos.y);
         }
       }
     }
@@ -326,32 +337,30 @@ const checkCollisionWithScoreLines = (networkObject: NetworkObject) => {
 };
 
 const emitObjectsPositionsToConnectedSockets = () => {
-  if (!networkObjects.length) return;
+  Array.from(tables.values())
+    .filter((table) => table.balls.size)
+    .forEach((table) => {
+      const positions = Array.from(table.balls.values()).reduce<BallsPositions>((resultArray, ball) => {
+        resultArray.push([ball.id, Math.trunc(ball.cpos.x), Math.trunc(ball.cpos.y)]);
+        return resultArray;
+      }, []);
 
-  const positions = networkObjects.reduce<NetworkObjectsPositions>((networkObjectsPositions, networkObject) => {
-    networkObjectsPositions.push([
-      networkObject.id,
-      Math.trunc(networkObject.cpos.x),
-      Math.trunc(networkObject.cpos.y),
-    ]);
-    return networkObjectsPositions;
-  }, []);
-
-  socketsConnected.forEach((socket) => {
-    socket.emit(ServerToClientEventName.Positions, positions);
-  });
+      table.sockets.forEach((socket) => {
+        socket.emit(ServerToClientEventName.Positions, positions);
+      });
+    });
 };
 
 const emitScoreboardToConnectedSockets = () => {
-  const scoreboard = Array.from(socketsConnected.values())
-    .sort((a, b) => (b.data.score as number) - (a.data.score as number))
-    .reduce<Scoreboard>((scoreboard, socket) => {
-      scoreboard.push([socket.data.nickname as string, socket.data.score as number]);
-      return scoreboard;
-    }, []);
+  tables.forEach((table) => {
+    const scoreboard = Array.from(table.sockets.values())
+      .sort((a, b) => (b.data.score as number) - (a.data.score as number))
+      .reduce<Scoreboard>((scoreboard, socket) => {
+        scoreboard.push([socket.data.nickname as string, socket.data.score as number, table.id as number]);
+        return scoreboard;
+      }, []);
 
-  socketsConnected.forEach((socket) => {
-    socket.emit(ServerToClientEventName.Scoreboard, scoreboard);
+    table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Scoreboard, scoreboard));
   });
 };
 
@@ -370,20 +379,20 @@ const handleUpdateOnTimePassedSinceLastScoreboardUpdate = (timePassed: number) =
 };
 
 const updatePhysics = (deltaTime: number) => {
-  networkObjects.forEach((networkObject) => {
-    accelerate(networkObject, deltaTime);
+  tables.forEach((table) => {
+    Array.from(table.balls.values()).forEach((ball, _, balls) => {
+      accelerate(ball, deltaTime);
 
-    networkObjects
-      .filter(
-        (otherNetworkObject) => networkObject !== otherNetworkObject && isColliding(networkObject, otherNetworkObject)
-      )
-      .forEach((otherNetworkObject) => handleCollision(networkObject, otherNetworkObject));
+      balls
+        .filter((otherNetworkObject) => ball !== otherNetworkObject && isColliding(ball, otherNetworkObject))
+        .forEach((otherNetworkObject) => handleCollision(ball, otherNetworkObject));
 
-    checkCollisionWithTableEdges(networkObject);
+      checkCollisionWithTableEdges(ball);
 
-    checkCollisionWithScoreLines(networkObject);
+      checkCollisionWithScoreLines(ball, table);
 
-    inertia(networkObject);
+      inertia(ball);
+    });
   });
 };
 
@@ -400,12 +409,13 @@ const handleMainLoopUpdate = (deltaTime: number) => {
   publishTimePassedSinceLastScoreboardUpdate(getTimePassedSinceLastScoreboardUpdate() + deltaTime);
 };
 
-const addNotOwnedBallsToTheTable = () => {
+const addNotOwnedBallsToTable = (table: Table) => {
   for (let value = 1; value <= 8; value++) {
-    const randomPosition = { x: getRandomNumberInsideCanvasSize(), y: getRandomNumberInsideCanvasSize() };
-    createNetworkObject({
-      cpos: copy(v2(), randomPosition),
-      ppos: copy(v2(), randomPosition),
+    const x = getRandomPositionForBallOnTable();
+    const y = getRandomPositionForBallOnTable();
+    addBallToTable(table, {
+      cpos: { x, y },
+      ppos: { x, y },
       radius: ballRadius,
       value,
       label: `${value}`,
@@ -414,11 +424,40 @@ const addNotOwnedBallsToTheTable = () => {
   }
 };
 
+const addSocketToTable = (socket: GameSocket, table: Table) => {
+  table.sockets.set(socket.id, socket);
+  socket.data.table = table;
+  createBallForSocket(socket);
+
+  socket.emit(ServerToClientEventName.Objects, Array.from(table.balls.values()));
+
+  broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} joined Table ${table.id}!`);
+};
+
+const removeSocketFromTable = (socket: GameSocket, table: Table) => {
+  broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} left Table ${table.id}.`);
+  deleteBallFromSocket(socket);
+  table.sockets.delete(socket.id);
+  socket.data.table = undefined;
+};
+
+const createTable = () => {
+  const table = {
+    id: getUniqueId(),
+    sockets: new Map<string, GameSocket>(),
+    balls: new Map<number, Ball>(),
+  } as Table;
+
+  tables.set(table.id, table);
+
+  addNotOwnedBallsToTable(table);
+
+  return table;
+};
+
 subscribeToTimePassedSinceLastScoreboardUpdate(handleUpdateOnTimePassedSinceLastScoreboardUpdate);
 subscribeToTimePassedSinceLastStateUpdateEmitted(handleUpdateOnTimePassedSinceLastStateUpdateEmitted);
-subscribeToSocketDisconnected(handleSocketDisconnected);
-subscribeToSocketConnected(handleSocketConnected);
 
 MainLoop.setUpdate(handleMainLoopUpdate).start();
 
-export default { io: publishSocketConnected };
+export default { io: handleSocketConnected };

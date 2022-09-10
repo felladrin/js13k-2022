@@ -15,9 +15,9 @@ import {
 import { Socket } from "socket.io-client";
 import { zzfx } from "zzfx";
 import {
-  NetworkObjectsPositions,
+  BallsPositions,
   networkObjectsUpdatesPerSecond,
-  NetworkObject,
+  Ball,
   squareCanvasSizeInPixels,
   ServerToClientEvents,
   ClientToServerEvents,
@@ -175,13 +175,13 @@ const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
   style.height = `${height * scale}px`;
 };
 
-const handleNetworkObjectsReceived = (networkObjects: NetworkObject[]) => {
+const handleNetworkObjectsReceived = (networkObjects: Ball[]) => {
   networkObjectIdToSpriteMap.clear();
 
   networkObjects.forEach((networkObject) => createSpriteForNetworkObject(networkObject));
 };
 
-const createSpriteForNetworkObject = (networkObject: NetworkObject) => {
+const createSpriteForNetworkObject = (networkObject: Ball) => {
   const sprite = Sprite({
     x: squareCanvasSizeInPixels / 2,
     y: squareCanvasSizeInPixels / 2,
@@ -288,7 +288,7 @@ const handleObjectDeleted = (id: number) => {
   networkObjectIdToSpriteMap.delete(id);
 };
 
-const handlePositionsUpdated = (positions: NetworkObjectsPositions): void => {
+const handlePositionsUpdated = (positions: BallsPositions): void => {
   positions.forEach(([objectId, x, y]) => {
     const sprite = networkObjectIdToSpriteMap.get(objectId);
     if (sprite) {
@@ -302,8 +302,8 @@ const handlePositionsUpdated = (positions: NetworkObjectsPositions): void => {
 
 const handleScoreboardUpdated = (scoreboard: Scoreboard): void => {
   scoreboardTextArea.value = "SCOREBOARD\n\n";
-  scoreboard.forEach(([nick, score]) => {
-    scoreboardTextArea.value += `${score}\t${nick}\n`;
+  scoreboard.forEach(([nick, score, tableId]) => {
+    scoreboardTextArea.value += `${score} | ${nick} | Table ${tableId}\n`;
   });
 };
 const handleScoredEvent = (value: number, x: number, y: number) => {
