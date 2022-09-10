@@ -44,7 +44,7 @@ export interface ServerToClientEvents {
   [ServerToClientEventName.Deletion]: (id: number) => void;
   [ServerToClientEventName.Scored]: (value: number, positionX: number, positionY: number) => void;
   [ServerToClientEventName.Positions]: (ballsPositions: BallsPositions) => void;
-  [ServerToClientEventName.Scoreboard]: (scoreboard: Scoreboard) => void;
+  [ServerToClientEventName.Scoreboard]: (overallScoreboard: Scoreboard, tableScoreboard: Scoreboard) => void;
 }
 
 export interface ClientToServerEvents {

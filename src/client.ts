@@ -300,11 +300,29 @@ const handlePositionsUpdated = (positions: BallsPositions): void => {
   });
 };
 
-const handleScoreboardUpdated = (scoreboard: Scoreboard): void => {
-  scoreboardTextArea.value = "SCOREBOARD\n\n";
-  scoreboard.forEach(([nick, score, tableId]) => {
-    scoreboardTextArea.value += `${score} | ${nick} | Table ${tableId}\n`;
-  });
+const handleScoreboardUpdated = (overallScoreboard: Scoreboard, tableScoreboard: Scoreboard): void => {
+  let zeroPaddingLengthForScore = 0;
+
+  if (overallScoreboard[0]) {
+    const [, score] = overallScoreboard[0];
+    zeroPaddingLengthForScore = score.toString().length;
+  }
+
+  const maxNickLength = overallScoreboard.reduce((maxLength, [nick]) => Math.max(maxLength, nick.length), 0);
+
+  scoreboardTextArea.value = "TABLE SCOREBOARD\n\n";
+
+  const writeScore = ([nick, score, tableId]: [nick: string, score: number, tableId: number]) => {
+    const formattedScore = String(score).padStart(zeroPaddingLengthForScore, "0");
+    const formattedNick = nick.padEnd(maxNickLength, " ");
+    scoreboardTextArea.value += `${formattedScore} | ${formattedNick} | Table ${tableId}\n`;
+  };
+
+  tableScoreboard.forEach(writeScore);
+
+  scoreboardTextArea.value += "\n\nOVERALL SCOREBOARD\n\n";
+
+  overallScoreboard.forEach(writeScore);
 };
 const handleScoredEvent = (value: number, x: number, y: number) => {
   playSound(value < 0 ? scoreDecreasedSound : scoreIncreasedSound);

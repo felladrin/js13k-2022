@@ -45,6 +45,8 @@ type Table = {
   balls: Map<number, Ball>;
 };
 
+let lastScoreboardEmitted = "";
+
 let uniqueIdCounter = 1;
 
 const getUniqueId = () => {
@@ -352,15 +354,39 @@ const emitObjectsPositionsToConnectedSockets = () => {
 };
 
 const emitScoreboardToConnectedSockets = () => {
+  const tableIdPerScoreboardMap = new Map<number, Scoreboard>();
+
   tables.forEach((table) => {
-    const scoreboard = Array.from(table.sockets.values())
+    const tableScoreboard = Array.from(table.sockets.values())
       .sort((a, b) => (b.data.score as number) - (a.data.score as number))
       .reduce<Scoreboard>((scoreboard, socket) => {
         scoreboard.push([socket.data.nickname as string, socket.data.score as number, table.id as number]);
         return scoreboard;
       }, []);
 
-    table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Scoreboard, scoreboard));
+    tableIdPerScoreboardMap.set(table.id, tableScoreboard);
+  });
+
+  const overallScoreboard = [] as Scoreboard;
+
+  tableIdPerScoreboardMap.forEach((tableScoreboard) => overallScoreboard.push(...tableScoreboard));
+
+  overallScoreboard.sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
+
+  const scoreBoardToEmit = JSON.stringify(overallScoreboard);
+
+  if (lastScoreboardEmitted === scoreBoardToEmit) return;
+
+  lastScoreboardEmitted = scoreBoardToEmit;
+
+  tables.forEach((table) => {
+    table.sockets.forEach((socket) => {
+      let tableScoreboard = [] as Scoreboard;
+      if (socket.data.table && tableIdPerScoreboardMap.has(socket.data.table.id)) {
+        tableScoreboard = tableIdPerScoreboardMap.get(socket.data.table.id) as Scoreboard;
+      }
+      socket.emit(ServerToClientEventName.Scoreboard, overallScoreboard, tableScoreboard);
+    });
   });
 };
 
