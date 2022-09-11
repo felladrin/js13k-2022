@@ -258,6 +258,22 @@ const handleMessageReceivedFromSocket = (message: string, socket: GameSocket) =>
       broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} is now known as ${trimmedNickname}!`);
       socket.data.nickname = trimmedNickname;
     }
+  } else if (message === "/new") {
+    if (socket.data.table) removeSocketFromTable(socket, socket.data.table);
+    addSocketToTable(socket, createTable());
+  } else if (message.startsWith("/join ")) {
+    const tableId = Number(message.replace("/join ", "").trim());
+
+    if (isNaN(tableId) || !tables.has(tableId)) {
+      socket.emit(ServerToClientEventName.Message, `📢 Table not found!`);
+    } else if (tables.get(tableId) === socket.data.table) {
+      socket.emit(ServerToClientEventName.Message, `📢 Already on table ${tableId}!`);
+    } else if ((tables.get(tableId) as Table).sockets.size >= maxSocketsPerTable) {
+      socket.emit(ServerToClientEventName.Message, `📢 Table is full!`);
+    } else {
+      if (socket.data.table) removeSocketFromTable(socket, socket.data.table);
+      addSocketToTable(socket, tables.get(tableId) as Table);
+    }
   } else {
     broadcastChatMessageToAllTables(`💬 ${socket.data.nickname}: ${message}`);
   }
