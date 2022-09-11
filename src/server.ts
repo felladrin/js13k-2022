@@ -58,6 +58,8 @@ let timePassedSinceLastStateUpdateEmitted = 0;
 
 let timePassedSinceLastScoreboardUpdate = 0;
 
+const nonPlayableBallsValuesRange = [1, 8] as [min: number, max: number];
+
 const maxSocketsPerTable = 4;
 
 const scoreboardUpdateMillisecondsInterval = 1000;
@@ -136,6 +138,8 @@ const addBallToTable = (table: Table, properties?: Partial<Ball>) => {
     ...properties,
   } as Ball;
 
+  placeBallInRandomPosition(ball);
+
   table.balls.set(ball.id, ball);
 
   table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Creation, ball));
@@ -145,6 +149,13 @@ const addBallToTable = (table: Table, properties?: Partial<Ball>) => {
 
 const getRandomPositionForBallOnTable = () =>
   tablePadding + ballRadius + Math.floor(Math.random() * (squareCanvasSizeInPixels - (tablePadding + ballRadius) * 2));
+
+const placeBallInRandomPosition = (ball: Ball) => {
+  const x = getRandomPositionForBallOnTable();
+  const y = getRandomPositionForBallOnTable();
+  ball.cpos = v2(x, y);
+  ball.ppos = v2(x, y);
+};
 
 const isColliding = (firstObject: Ball, secondObject: Ball) =>
   overlapCircleCircle(
@@ -186,19 +197,12 @@ const handleCollision = (firstObject: Ball, secondObject: Ball) => {
 const createBallForSocket = (socket: GameSocket) => {
   if (!socket.data.table) return;
 
-  const x = getRandomPositionForBallOnTable();
-  const y = getRandomPositionForBallOnTable();
-
-  const ball = addBallToTable(socket.data.table, {
-    cpos: { x, y },
-    ppos: { x, y },
+  socket.data.ball = addBallToTable(socket.data.table, {
     radius: ballRadius,
     ownerSocketId: socket.id,
     color: getRandomHexColor(),
     value: 9,
   });
-
-  socket.data.ball = ball;
 };
 
 const deleteBallFromSocket = (socket: GameSocket) => {
@@ -209,17 +213,12 @@ const deleteBallFromSocket = (socket: GameSocket) => {
   socket.data.ball = undefined;
 };
 
-const getNumberOfNotOwnedBallsOnTable = (table: Table) =>
+const getNumberOfNonPlayableBallsOnTable = (table: Table) =>
   Array.from(table.balls.values()).filter((ball) => !ball.ownerSocketId).length;
 
 const handleSocketConnected = (socket: GameSocket) => {
-  socket.data.nickname = `Player${getUniqueId()}`;
+  socket.data.nickname = `Player ${getUniqueId()}`;
   socket.data.score = 0;
-
-  socket.emit(
-    ServerToClientEventName.Message,
-    `📢 Welcome, ${socket.data.nickname}!\nTo change your nickname, type '/nick <name>' on the text field below.`
-  );
 
   const table =
     Array.from(tables.values()).find((currentTable) => currentTable.sockets.size < maxSocketsPerTable) ?? createTable();
@@ -258,11 +257,11 @@ const handleMessageReceivedFromSocket = (message: string, socket: GameSocket) =>
       broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} is now known as ${trimmedNickname}!`);
       socket.data.nickname = trimmedNickname;
     }
-  } else if (message === "/new") {
-    if (socket.data.table) removeSocketFromTable(socket, socket.data.table);
+  } else if (message.startsWith("/newtable")) {
+    removeSocketFromTable(socket, socket.data.table);
     addSocketToTable(socket, createTable());
-  } else if (message.startsWith("/join ")) {
-    const tableId = Number(message.replace("/join ", "").trim());
+  } else if (message.startsWith("/jointable ")) {
+    const tableId = Number(message.replace("/jointable ", "").trim());
 
     if (isNaN(tableId) || !tables.has(tableId)) {
       socket.emit(ServerToClientEventName.Message, `📢 Table not found!`);
@@ -271,7 +270,7 @@ const handleMessageReceivedFromSocket = (message: string, socket: GameSocket) =>
     } else if ((tables.get(tableId) as Table).sockets.size >= maxSocketsPerTable) {
       socket.emit(ServerToClientEventName.Message, `📢 Table is full!`);
     } else {
-      if (socket.data.table) removeSocketFromTable(socket, socket.data.table);
+      removeSocketFromTable(socket, socket.data.table);
       addSocketToTable(socket, tables.get(tableId) as Table);
     }
   } else {
@@ -314,7 +313,7 @@ const deleteBallFromTable = (ball: Ball, table: Table) => {
     table.sockets.forEach((targetSocket) => targetSocket.emit(ServerToClientEventName.Deletion, ball.id));
   }
 
-  if (getNumberOfNotOwnedBallsOnTable(table) == 0) addNotOwnedBallsToTable(table);
+  if (getNumberOfNonPlayableBallsOnTable(table) == 0) addNonPlayableBallsToTable(table);
 };
 
 const checkCollisionWithScoreLines = (ball: Ball, table: Table) => {
@@ -397,23 +396,22 @@ const emitScoreboardToConnectedSockets = () => {
   });
 };
 
-const handleUpdateOnTimePassedSinceLastStateUpdateEmitted = (timePassed: number) => {
-  if (timePassed > objectsPositionsUpdateMillisecondsInterval) {
-    emitObjectsPositionsToConnectedSockets();
-    timePassedSinceLastStateUpdateEmitted = timePassed - objectsPositionsUpdateMillisecondsInterval;
-  }
-};
-
-const handleUpdateOnTimePassedSinceLastScoreboardUpdate = (timePassed: number) => {
-  if (timePassed > scoreboardUpdateMillisecondsInterval) {
-    emitScoreboardToConnectedSockets();
-    timePassedSinceLastScoreboardUpdate = timePassed - scoreboardUpdateMillisecondsInterval;
+const repositionBallIfItIsOutOfTable = (ball: Ball) => {
+  if (
+    ball.cpos.x < 0 ||
+    ball.cpos.x > squareCanvasSizeInPixels ||
+    ball.cpos.y < 0 ||
+    ball.cpos.y > squareCanvasSizeInPixels
+  ) {
+    placeBallInRandomPosition(ball);
   }
 };
 
 const updatePhysics = (deltaTime: number) => {
   tables.forEach((table) => {
     Array.from(table.balls.values()).forEach((ball, _, balls) => {
+      repositionBallIfItIsOutOfTable(ball);
+
       accelerate(ball, deltaTime);
 
       balls
@@ -452,13 +450,10 @@ const handleMainLoopUpdate = (deltaTime: number) => {
   }
 };
 
-const addNotOwnedBallsToTable = (table: Table) => {
-  for (let value = 1; value <= 8; value++) {
-    const x = getRandomPositionForBallOnTable();
-    const y = getRandomPositionForBallOnTable();
+const addNonPlayableBallsToTable = (table: Table) => {
+  const [min, max] = nonPlayableBallsValuesRange;
+  for (let value = min; value <= max; value++) {
     addBallToTable(table, {
-      cpos: { x, y },
-      ppos: { x, y },
       radius: ballRadius,
       value,
       label: `${value}`,
@@ -475,8 +470,8 @@ const addSocketToTable = (socket: GameSocket, table: Table) => {
   broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} joined Table ${table.id}!`);
 };
 
-const removeSocketFromTable = (socket: GameSocket, table: Table) => {
-  broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} left Table ${table.id}.`);
+const removeSocketFromTable = (socket: GameSocket, table?: Table) => {
+  if (!table) return;
   deleteBallFromSocket(socket);
   table.sockets.delete(socket.id);
   socket.data.table = undefined;
@@ -492,7 +487,7 @@ const createTable = () => {
 
   tables.set(table.id, table);
 
-  addNotOwnedBallsToTable(table);
+  addNonPlayableBallsToTable(table);
 
   return table;
 };

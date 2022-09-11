@@ -23,7 +23,6 @@
         overflow: hidden;
         background-color: #370000;
         touch-action: none;
-        font-family: Verdana, Geneva, Tahoma, sans-serif;
       }
 
       img {
@@ -32,10 +31,6 @@
 
       button {
         cursor: pointer;
-      }
-
-      #canvas {
-        image-rendering: pixelated;
       }
 
       #a {
@@ -47,11 +42,11 @@
       @media (orientation: landscape) {
         #a {
           grid-template-areas: "a1 a2";
-          grid-template-columns: 250px 1fr;
+          grid-template-columns: 300px 1fr;
         }
 
         #canvas {
-          max-width: calc(100vw - 250px);
+          max-width: calc(100vw - 300px);
           max-height: var(--inner-height);
         }
       }
@@ -151,6 +146,10 @@
       #b textarea {
         background-color: #550000;
         resize: none;
+      }
+
+      #b textarea:disabled {
+        color: white;
       }
 
       #b button {

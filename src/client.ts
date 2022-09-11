@@ -1,3 +1,4 @@
+import type { Socket } from "socket.io-client";
 import { createPubSub } from "create-pubsub";
 import {
   init,
@@ -12,8 +13,6 @@ import {
   radToDeg,
   Pool,
 } from "kontra";
-import { Socket } from "socket.io-client";
-import { zzfx } from "zzfx";
 import {
   BallsPositions,
   networkObjectsUpdatesPerSecond,
@@ -26,6 +25,9 @@ import {
   ServerToClientEventName,
   Scoreboard,
 } from "./shared";
+import { zzfx } from "zzfx";
+
+const gameName = "YoYo Haku Pool";
 
 const gameFramesPerSecond = 60;
 
@@ -55,9 +57,9 @@ const [publishPageWithImagesLoaded, subscribeToPageWithImagesLoaded] = createPub
 
 const [publishGamePreparationComplete, subscribeToGamePreparationCompleted] = createPubSub();
 
-const [setOwnSprite, , getOwnSprite] = createPubSub<Sprite | null>(null);
+const [publishPointerPressed, subscribeToPointerPressed, isPointerPressed] = createPubSub(false);
 
-const [setPointerPressed, , isPointerPressed] = createPubSub(false);
+const [setOwnSprite, , getOwnSprite] = createPubSub<Sprite | null>(null);
 
 const [setLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed] = createPubSub(Date.now());
 
@@ -103,6 +105,8 @@ const setCanvasWidthAndHeight = () => {
 };
 
 const prepareGame = () => {
+  updateDocumentTitleWithGameName();
+  printWelcomeMessage();
   setCanvasWidthAndHeight();
   handleWindowResized();
   initPointer({ radius: 0 });
@@ -233,7 +237,7 @@ const stopSprite = (sprite: Sprite) => {
 
 const handleChatMessageReceived = (message: string) => {
   playSound(messageReceivedSound);
-  chatHistory.value += `[${getHoursFromLocalTime()}:${getMinutesFromLocalTime()}] ${message}\n`;
+  chatHistory.value += `${getHoursFromLocalTime()}:${getMinutesFromLocalTime()} ${message}\n`;
   if (chatHistory !== document.activeElement) chatHistory.scrollTop = chatHistory.scrollHeight;
 };
 
@@ -243,9 +247,10 @@ const getHoursFromLocalTime = () => new Date().getHours().toString().padStart(2,
 
 const sendChatMessage = () => {
   const messageToSend = chatInputField.value.trim();
-  if (!messageToSend.length) return;
-  socket.emit(ClientToServerEventName.Message, messageToSend);
   chatInputField.value = "";
+  if (!messageToSend.length) return;
+  if (messageToSend.startsWith("/help")) return printHelpText();
+  socket.emit(ClientToServerEventName.Message, messageToSend);
 };
 
 const handleKeyPressedOnChatInputField = (event: KeyboardEvent) => {
@@ -275,7 +280,7 @@ const enableSounds = () => {
 const handlePointerDown = () => {
   if (!getOwnSprite()) return;
   playSound(acceleratingSound);
-  setPointerPressed(true);
+  publishPointerPressed(true);
 };
 
 const handleObjectDeleted = (id: number) => {
@@ -328,9 +333,9 @@ const handleScoredEvent = (value: number, x: number, y: number) => {
   playSound(value < 0 ? scoreDecreasedSound : scoreIncreasedSound);
 
   const scoreText = scoreTextPool.get({
-    text: `${value > 0 ? "+" : ""}${value}`,
-    font: "48px monospace",
-    color: value < 0 ? "purple" : "gold",
+    text: `${value > 0 ? "+" : ""}${value}${value > 0 ? "✨" : "💀"}`,
+    font: "36px monospace",
+    color: value > 0 ? "#F9D82B" : "#3B3B3B",
     x,
     y,
     anchor: { x: 0.5, y: 0.5 },
@@ -346,15 +351,29 @@ const handleScoredEvent = (value: number, x: number, y: number) => {
 
       if (scoreText.x > x + 2 || scoreText.x < x - 2) scoreText.dx *= -1;
     },
-  } as Text) as Text;
+  }) as Text;
+};
+
+const handlePointerPressed = (isPointerPressed: boolean) => {
+  canvas.style.cursor = isPointerPressed ? "grabbing" : "grab";
+};
+
+const printWelcomeMessage = () =>
+  handleChatMessageReceived(
+    `👋 Welcome to ${gameName}!\n\nℹ️ New to this game? Enter /help in the message field below to learn about it.\n`
+  );
+
+const updateDocumentTitleWithGameName = () => {
+  document.title = gameName;
 };
 
 subscribeToMainLoopUpdate(updateScene);
 subscribeToMainLoopDraw(renderScene);
 subscribeToGamePreparationCompleted(startMainLoop);
 subscribeToPageWithImagesLoaded(prepareGame);
+subscribeToPointerPressed(handlePointerPressed);
 onPointer("down", handlePointerDown);
-onPointer("up", () => setPointerPressed(false));
+onPointer("up", () => publishPointerPressed(false));
 window.addEventListener("load", publishPageWithImagesLoaded);
 window.addEventListener("resize", handleWindowResized);
 window.addEventListener("click", enableSounds, { once: true });
@@ -367,3 +386,21 @@ socket.on(ServerToClientEventName.Creation, createSpriteForNetworkObject);
 socket.on(ServerToClientEventName.Deletion, handleObjectDeleted);
 socket.on(ServerToClientEventName.Scored, handleScoredEvent);
 socket.on(ServerToClientEventName.Scoreboard, handleScoreboardUpdated);
+
+function printHelpText() {
+  handleChatMessageReceived(
+    `ℹ️ ${gameName} puts you in control of a yoyo on a multiplayer pool table!\n\n` +
+      `Your objective is to keep the highest score as long as possible.\n\n` +
+      `Each ball has a value, and you should use yoyo maneuvers to pull them into the corner pockets.\n\n` +
+      `If you manage to pull other yoyo into a corner pocket, you take part of their score.\n\n` +
+      `And if end up in a corner pocket, you lose score.\n\n` +
+      `Use this chat area to communicate with other players and run commands.\n\n` +
+      `Here's the list of commands you can run:\n\n` +
+      `- Command: /nick <nickname>\n` +
+      `  Description: Changes your nickname.\n\n` +
+      `- Command: /newtable\n` +
+      `  Description: Creates a new table.\n\n` +
+      `- Command: /jointable <number>\n` +
+      `  Description: Joins an specific table.\n`
+  );
+}
