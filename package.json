@@ -6,14 +6,15 @@
   "scripts": {
     "start": "npm run build && cd js13kserver && node index.js",
     "dev": "npm run build && npm-run-all --parallel --race rollup-watch nodemon",
-    "build": "npm-run-all --sequential download-game-server clear-public-folder rollup-build minify-html zip",
+    "build": "npm-run-all --sequential download-game-server clear-public-folder rollup-build minify-html roadroller zip",
     "nodemon": "cd js13kserver && npx nodemon",
     "rollup-build": "rollup -c",
     "rollup-watch": "rollup -c -w",
     "download-game-server": "ts-node package-scripts/downloadGameServer",
     "zip": "ts-node package-scripts/zip.ts",
     "clear-public-folder": "del js13kserver/public",
-    "minify-html": "html-minifier --collapse-whitespace --remove-comments --remove-optional-tags --remove-redundant-attributes --remove-script-type-attributes --use-short-doctype --minify-css true --minify-js true public/index.html > js13kserver/public/index.html"
+    "minify-html": "html-minifier --collapse-whitespace --remove-comments --remove-optional-tags --remove-redundant-attributes --remove-script-type-attributes --use-short-doctype --minify-css true --minify-js true public/index.html > js13kserver/public/index.html",
+    "roadroller": "cd js13kserver/public/ && roadroller client.js -o client.js && roadroller server.js -o server.js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^22.0.2",
@@ -34,6 +35,7 @@
     "mainloop.js": "^1.0.4",
     "npm-run-all": "^4.1.5",
     "pocket-physics": "^10.1.1",
+    "roadroller": "^2.1.0",
     "rollup": "^2.78.0",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-terser": "^7.0.2",
