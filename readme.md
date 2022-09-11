@@ -2,6 +2,8 @@
 
 YoYo Haku Pool puts you in control of a yoyo on a multiplayer pool table!
 
+![Game Screenshot](./screenshot.png)
+
 The goal is to keep the highest score as long as possible.
 
 Click or touch the table to pull your yoyo.
@@ -41,7 +43,7 @@ _The game follows the rules of [JS13K Server Category](https://github.com/js13kG
 ## Tools used during development
 
 - [Gitpod - Ready-to-code developer environments in the cloud](https://gitpod.io)
-- [CSS Grid Layout generator](https://vue-grid-generator.netlify.app)
-- [vConsole - Front-end developer tool for mobile web pages](https://github.com/Tencent/vConsole)
 - [Piskel - Free online editor for animated sprites & pixel art](https://www.piskelapp.com)
 - [Squoosh - Reduce file size from a image while maintain high quality](https://squoosh.app)
+- [vConsole - Front-end developer tool for mobile web pages](https://github.com/Tencent/vConsole)
+- [CSS Grid Layout generator](https://vue-grid-generator.netlify.app)
