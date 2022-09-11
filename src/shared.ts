@@ -1,6 +1,6 @@
 import type { Integratable } from "pocket-physics";
 
-export const networkObjectsUpdatesPerSecond = 8;
+export const ballsPositionsUpdatesPerSecond = 8;
 
 export const ballRadius = 14;
 

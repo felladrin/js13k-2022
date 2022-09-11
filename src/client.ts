@@ -15,7 +15,7 @@ import {
 } from "kontra";
 import {
   BallsPositions,
-  networkObjectsUpdatesPerSecond,
+  ballsPositionsUpdatesPerSecond,
   Ball,
   squareCanvasSizeInPixels,
   ServerToClientEvents,
@@ -31,9 +31,9 @@ const gameName = "YoYo Haku Pool";
 
 const gameFramesPerSecond = 60;
 
-const gameStateUpdateFramesInterval = gameFramesPerSecond / networkObjectsUpdatesPerSecond;
+const gameStateUpdateFramesInterval = gameFramesPerSecond / ballsPositionsUpdatesPerSecond;
 
-const networkObjectIdToSpriteMap = new Map<number, Sprite>();
+const ballIdToBallSpriteMap = new Map<number, Sprite>();
 
 const { canvas, context } = init(document.querySelector("#canvas") as HTMLCanvasElement);
 
@@ -62,6 +62,8 @@ const [publishPointerPressed, subscribeToPointerPressed, isPointerPressed] = cre
 const [setOwnSprite, , getOwnSprite] = createPubSub<Sprite | null>(null);
 
 const [setLastTimeEmittedPointerPressed, , getLastTimeEmittedPointerPressed] = createPubSub(Date.now());
+
+const [publishSoundEnabled, , isSoundEnabled] = createPubSub(false);
 
 const messageReceivedSound = [2.01, , 773, 0.02, 0.01, 0.01, 1, 1.14, 44, -27, , , , , 0.9, , 0.18, 0.81, 0.01];
 
@@ -100,54 +102,54 @@ const scoreTextPool = Pool({
   create: Text as any,
 });
 
-const setCanvasWidthAndHeight = () => {
+function setCanvasWidthAndHeight() {
   canvas.width = canvas.height = squareCanvasSizeInPixels;
-};
+}
 
-const prepareGame = () => {
+function prepareGame() {
   updateDocumentTitleWithGameName();
   printWelcomeMessage();
   setCanvasWidthAndHeight();
   handleWindowResized();
   initPointer({ radius: 0 });
   publishGamePreparationComplete();
-};
+}
 
-const emitPointerPressedIfNeeded = () => {
-  if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / networkObjectsUpdatesPerSecond)
+function emitPointerPressedIfNeeded() {
+  if (!isPointerPressed() || Date.now() - getLastTimeEmittedPointerPressed() < 1000 / ballsPositionsUpdatesPerSecond)
     return;
   const { x, y } = getPointer();
   socket.emit(ClientToServerEventName.Click, Math.trunc(x), Math.trunc(y));
   setLastTimeEmittedPointerPressed(Date.now());
-};
+}
 
-const updateScene = () => {
+function updateScene() {
   emitPointerPressedIfNeeded();
 
-  networkObjectIdToSpriteMap.forEach((sprite) => {
+  ballIdToBallSpriteMap.forEach((sprite) => {
     const newRotationDegree = radToDeg(sprite.rotation) + (Math.abs(sprite.dx) + Math.abs(sprite.dy)) * 7;
     sprite.rotation = degToRad(newRotationDegree > 360 ? newRotationDegree - 360 : newRotationDegree);
     sprite.update();
   });
 
   scoreTextPool.update();
-};
+}
 
-const drawLine = (fromPoint: { x: number; y: number }, toPoint: { x: number; y: number }) => {
+function drawLine(fromPoint: { x: number; y: number }, toPoint: { x: number; y: number }) {
   context.beginPath();
   context.strokeStyle = "#fff";
   context.moveTo(fromPoint.x, fromPoint.y);
   context.lineTo(toPoint.x, toPoint.y);
   context.stroke();
-};
+}
 
-const renderOtherSprites = () => {
-  networkObjectIdToSpriteMap.forEach((sprite) => {
+function renderOtherSprites() {
+  ballIdToBallSpriteMap.forEach((sprite) => {
     if (sprite !== getOwnSprite()) sprite.render();
   });
-};
+}
 
-const renderOwnSpritePossiblyWithWire = () => {
+function renderOwnSpritePossiblyWithWire() {
   const ownSprite = getOwnSprite();
 
   if (!ownSprite) return;
@@ -155,18 +157,20 @@ const renderOwnSpritePossiblyWithWire = () => {
   if (isPointerPressed()) drawLine(ownSprite.position, getPointer());
 
   ownSprite.render();
-};
+}
 
-const renderScene = () => {
+function renderScene() {
   tableSprite.render();
   renderOtherSprites();
   renderOwnSpritePossiblyWithWire();
   scoreTextPool.render();
-};
+}
 
-const startMainLoop = () => GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw }).start();
+function startMainLoop() {
+  return GameLoop({ update: publishMainLoopUpdate, render: publishMainLoopDraw }).start();
+}
 
-const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
+function fitCanvasInsideItsParent(canvasElement: HTMLCanvasElement) {
   if (!canvasElement.parentElement) return;
   const { width, height, style, parentElement } = canvasElement;
   const { clientWidth, clientHeight } = parentElement;
@@ -177,21 +181,21 @@ const fitCanvasInsideItsParent = (canvasElement: HTMLCanvasElement) => {
   style.marginLeft = `${(clientWidth - width * scale) / 2}px`;
   style.width = `${width * scale}px`;
   style.height = `${height * scale}px`;
-};
+}
 
-const handleNetworkObjectsReceived = (networkObjects: Ball[]) => {
-  networkObjectIdToSpriteMap.clear();
+function handleBallsPositionsReceived(balls: Ball[]) {
+  ballIdToBallSpriteMap.clear();
 
-  networkObjects.forEach((networkObject) => createSpriteForNetworkObject(networkObject));
-};
+  balls.forEach((ball) => createSpriteForBall(ball));
+}
 
-const createSpriteForNetworkObject = (networkObject: Ball) => {
+function createSpriteForBall(ball: Ball) {
   const sprite = Sprite({
     x: squareCanvasSizeInPixels / 2,
     y: squareCanvasSizeInPixels / 2,
     anchor: { x: 0.5, y: 0.5 },
     render: () => {
-      sprite.context.fillStyle = networkObject.color;
+      sprite.context.fillStyle = ball.color;
       sprite.context.beginPath();
       sprite.context.arc(0, 0, ballRadius, 0, 2 * Math.PI);
       sprite.context.fill();
@@ -210,7 +214,7 @@ const createSpriteForNetworkObject = (networkObject: Ball) => {
   sprite.addChild(whiteCircle);
 
   const ballLabel = Text({
-    text: networkObject.label,
+    text: ball.label,
     font: `${ballRadius}px monospace`,
     color: "black",
     anchor: { x: 0.5, y: 0.5 },
@@ -218,84 +222,90 @@ const createSpriteForNetworkObject = (networkObject: Ball) => {
   });
   sprite.addChild(ballLabel);
 
-  networkObjectIdToSpriteMap.set(networkObject.id, sprite);
+  ballIdToBallSpriteMap.set(ball.id, sprite);
 
-  if (networkObject.ownerSocketId === socket.id) setOwnSprite(sprite);
+  if (ball.ownerSocketId === socket.id) setOwnSprite(sprite);
 
   return sprite;
-};
+}
 
-const setSpriteVelocity = (expectedPosition: Vector, sprite: Sprite) => {
+function setSpriteVelocity(expectedPosition: Vector, sprite: Sprite) {
   const difference = expectedPosition.subtract(sprite.position);
   sprite.dx = difference.x / gameStateUpdateFramesInterval;
   sprite.dy = difference.y / gameStateUpdateFramesInterval;
-};
+}
 
-const stopSprite = (sprite: Sprite) => {
+function stopSprite(sprite: Sprite) {
   sprite.ddx = sprite.ddy = sprite.dx = sprite.dy = 0;
-};
+}
 
-const handleChatMessageReceived = (message: string) => {
+function handleChatMessageReceived(message: string) {
   playSound(messageReceivedSound);
   chatHistory.value += `${getHoursFromLocalTime()}:${getMinutesFromLocalTime()} ${message}\n`;
   if (chatHistory !== document.activeElement) chatHistory.scrollTop = chatHistory.scrollHeight;
-};
+}
 
-const getMinutesFromLocalTime = () => new Date().getMinutes().toString().padStart(2, "0");
+function getMinutesFromLocalTime() {
+  return new Date().getMinutes().toString().padStart(2, "0");
+}
 
-const getHoursFromLocalTime = () => new Date().getHours().toString().padStart(2, "0");
+function getHoursFromLocalTime() {
+  return new Date().getHours().toString().padStart(2, "0");
+}
 
-const sendChatMessage = () => {
+function sendChatMessage() {
   const messageToSend = chatInputField.value.trim();
   chatInputField.value = "";
   if (!messageToSend.length) return;
   if (messageToSend.startsWith("/help")) return printHelpText();
   socket.emit(ClientToServerEventName.Message, messageToSend);
-};
+}
 
-const handleKeyPressedOnChatInputField = (event: KeyboardEvent) => {
+function handleKeyPressedOnChatInputField(event: KeyboardEvent) {
   if (event.key === "Enter") sendChatMessage();
-};
+}
 
-const updateInnerHeightProperty = () => {
+function updateInnerHeightProperty() {
   document.documentElement.style.setProperty("--inner-height", `${window.innerHeight}px`);
-};
+}
 
-const handleWindowResized = () => {
+function handleWindowResized() {
   updateInnerHeightProperty();
   fitCanvasInsideItsParent(canvas);
-};
+}
 
-const [publishSoundEnabled, , isSoundEnabled] = createPubSub(false);
-
-const playSound = (sound: (number | undefined)[]) => {
+function playSound(sound: (number | undefined)[]) {
   if (isSoundEnabled()) zzfx(...sound);
-};
+}
 
-const enableSounds = () => {
+function enableSounds() {
   publishSoundEnabled(true);
   playSound(messageReceivedSound);
-};
+}
 
-const handlePointerDown = () => {
+function handlePointerDown() {
   if (!getOwnSprite()) return;
   playSound(acceleratingSound);
   publishPointerPressed(true);
-};
+}
 
-const handleObjectDeleted = (id: number) => {
-  const spriteToDelete = networkObjectIdToSpriteMap.get(id);
+function handlePointerUp() {
+  publishPointerPressed(false);
+}
+
+function handleObjectDeleted(id: number) {
+  const spriteToDelete = ballIdToBallSpriteMap.get(id);
 
   if (!spriteToDelete) return;
 
   if (spriteToDelete === getOwnSprite()) setOwnSprite(null);
 
-  networkObjectIdToSpriteMap.delete(id);
-};
+  ballIdToBallSpriteMap.delete(id);
+}
 
-const handlePositionsUpdated = (positions: BallsPositions): void => {
+function handlePositionsUpdated(positions: BallsPositions): void {
   positions.forEach(([objectId, x, y]) => {
-    const sprite = networkObjectIdToSpriteMap.get(objectId);
+    const sprite = ballIdToBallSpriteMap.get(objectId);
     if (sprite) {
       const expectedPosition = Vector(x, y);
       expectedPosition.distance(sprite.position) != 0
@@ -303,9 +313,9 @@ const handlePositionsUpdated = (positions: BallsPositions): void => {
         : stopSprite(sprite);
     }
   });
-};
+}
 
-const handleScoreboardUpdated = (overallScoreboard: Scoreboard, tableScoreboard: Scoreboard): void => {
+function handleScoreboardUpdated(overallScoreboard: Scoreboard, tableScoreboard: Scoreboard): void {
   let zeroPaddingLengthForScore = 0;
 
   if (overallScoreboard[0]) {
@@ -317,19 +327,20 @@ const handleScoreboardUpdated = (overallScoreboard: Scoreboard, tableScoreboard:
 
   scoreboardTextArea.value = "TABLE SCOREBOARD\n\n";
 
-  const writeScore = ([nick, score, tableId]: [nick: string, score: number, tableId: number]) => {
+  function writeScore([nick, score, tableId]: [nick: string, score: number, tableId: number]) {
     const formattedScore = String(score).padStart(zeroPaddingLengthForScore, "0");
     const formattedNick = nick.padEnd(maxNickLength, " ");
     scoreboardTextArea.value += `${formattedScore} | ${formattedNick} | Table ${tableId}\n`;
-  };
+  }
 
   tableScoreboard.forEach(writeScore);
 
   scoreboardTextArea.value += "\n\nOVERALL SCOREBOARD\n\n";
 
   overallScoreboard.forEach(writeScore);
-};
-const handleScoredEvent = (value: number, x: number, y: number) => {
+}
+
+function handleScoredEvent(value: number, x: number, y: number) {
   playSound(value < 0 ? scoreDecreasedSound : scoreIncreasedSound);
 
   const scoreText = scoreTextPool.get({
@@ -352,47 +363,28 @@ const handleScoredEvent = (value: number, x: number, y: number) => {
       if (scoreText.x > x + 2 || scoreText.x < x - 2) scoreText.dx *= -1;
     },
   }) as Text;
-};
+}
 
-const handlePointerPressed = (isPointerPressed: boolean) => {
+function handlePointerPressed(isPointerPressed: boolean) {
   canvas.style.cursor = isPointerPressed ? "grabbing" : "grab";
-};
+}
 
-const printWelcomeMessage = () =>
-  handleChatMessageReceived(
+function printWelcomeMessage() {
+  return handleChatMessageReceived(
     `👋 Welcome to ${gameName}!\n\nℹ️ New to this game? Enter /help in the message field below to learn about it.\n`
   );
+}
 
-const updateDocumentTitleWithGameName = () => {
+function updateDocumentTitleWithGameName() {
   document.title = gameName;
-};
-
-subscribeToMainLoopUpdate(updateScene);
-subscribeToMainLoopDraw(renderScene);
-subscribeToGamePreparationCompleted(startMainLoop);
-subscribeToPageWithImagesLoaded(prepareGame);
-subscribeToPointerPressed(handlePointerPressed);
-onPointer("down", handlePointerDown);
-onPointer("up", () => publishPointerPressed(false));
-window.addEventListener("load", publishPageWithImagesLoaded);
-window.addEventListener("resize", handleWindowResized);
-window.addEventListener("click", enableSounds, { once: true });
-chatButton.addEventListener("click", sendChatMessage);
-chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
-socket.on(ServerToClientEventName.Message, handleChatMessageReceived);
-socket.on(ServerToClientEventName.Objects, handleNetworkObjectsReceived);
-socket.on(ServerToClientEventName.Positions, handlePositionsUpdated);
-socket.on(ServerToClientEventName.Creation, createSpriteForNetworkObject);
-socket.on(ServerToClientEventName.Deletion, handleObjectDeleted);
-socket.on(ServerToClientEventName.Scored, handleScoredEvent);
-socket.on(ServerToClientEventName.Scoreboard, handleScoreboardUpdated);
+}
 
 function printHelpText() {
   handleChatMessageReceived(
     `ℹ️ ${gameName} puts you in control of a yoyo on a multiplayer pool table!\n\n` +
-      `Your objective is to keep the highest score as long as possible.\n\n` +
+      `The goal is to keep the highest score as long as possible.\n\n` +
       `Each ball has a value, and you should use yoyo maneuvers to pull them into the corner pockets.\n\n` +
-      `If you manage to pull other yoyo into a corner pocket, you take part of their score.\n\n` +
+      `If you manage to pull another yoyo into a corner pocket, you take part of their score.\n\n` +
       `And if end up in a corner pocket, you lose score.\n\n` +
       `Use this chat area to communicate with other players and run commands.\n\n` +
       `Here's the list of commands you can run:\n\n` +
@@ -401,6 +393,26 @@ function printHelpText() {
       `- Command: /newtable\n` +
       `  Description: Creates a new table.\n\n` +
       `- Command: /jointable <number>\n` +
-      `  Description: Joins an specific table.\n`
+      `  Description: Joins a specific table.\n`
   );
 }
+
+subscribeToMainLoopUpdate(updateScene);
+subscribeToMainLoopDraw(renderScene);
+subscribeToGamePreparationCompleted(startMainLoop);
+subscribeToPageWithImagesLoaded(prepareGame);
+subscribeToPointerPressed(handlePointerPressed);
+onPointer("down", handlePointerDown);
+onPointer("up", handlePointerUp);
+window.addEventListener("load", publishPageWithImagesLoaded);
+window.addEventListener("resize", handleWindowResized);
+window.addEventListener("click", enableSounds, { once: true });
+chatButton.addEventListener("click", sendChatMessage);
+chatInputField.addEventListener("keyup", handleKeyPressedOnChatInputField);
+socket.on(ServerToClientEventName.Message, handleChatMessageReceived);
+socket.on(ServerToClientEventName.Objects, handleBallsPositionsReceived);
+socket.on(ServerToClientEventName.Positions, handlePositionsUpdated);
+socket.on(ServerToClientEventName.Creation, createSpriteForBall);
+socket.on(ServerToClientEventName.Deletion, handleObjectDeleted);
+socket.on(ServerToClientEventName.Scored, handleScoredEvent);
+socket.on(ServerToClientEventName.Scoreboard, handleScoreboardUpdated);

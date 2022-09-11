@@ -18,7 +18,7 @@ import {
 } from "pocket-physics";
 import {
   Ball,
-  networkObjectsUpdatesPerSecond,
+  ballsPositionsUpdatesPerSecond,
   squareCanvasSizeInPixels,
   ballRadius,
   ClientToServerEvents,
@@ -29,14 +29,14 @@ import {
   Scoreboard,
 } from "./shared";
 
-type SocketData = {
+type GameSocketData = {
   ball: Ball;
   nickname: string;
   score: number;
   table: Table;
 };
 
-type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, GameSocketData>;
 
 type Table = {
   id: number;
@@ -48,12 +48,6 @@ let lastScoreboardEmitted = "";
 
 let uniqueIdCounter = 1;
 
-const getUniqueId = () => {
-  const id = uniqueIdCounter;
-  id < Number.MAX_SAFE_INTEGER ? uniqueIdCounter++ : 1;
-  return id;
-};
-
 let timePassedSinceLastStateUpdateEmitted = 0;
 
 let timePassedSinceLastScoreboardUpdate = 0;
@@ -64,7 +58,7 @@ const maxSocketsPerTable = 4;
 
 const scoreboardUpdateMillisecondsInterval = 1000;
 
-const objectsPositionsUpdateMillisecondsInterval = 1000 / networkObjectsUpdatesPerSecond;
+const objectsPositionsUpdateMillisecondsInterval = 1000 / ballsPositionsUpdatesPerSecond;
 
 const massOfImmovableObjects = -1;
 
@@ -120,11 +114,21 @@ const scoreLines = [
   ],
 ] as [Vector2, Vector2][];
 
-const getRandomElementFrom = (object: any[] | string) => object[Math.floor(Math.random() * object.length)];
+function getUniqueId() {
+  const id = uniqueIdCounter;
+  id < Number.MAX_SAFE_INTEGER ? uniqueIdCounter++ : 1;
+  return id;
+}
 
-const getRandomTextualSmile = () => `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
+function getRandomElementFrom(object: any[] | string) {
+  return object[Math.floor(Math.random() * object.length)];
+}
 
-const addBallToTable = (table: Table, properties?: Partial<Ball>) => {
+function getRandomTextualSmile() {
+  return `${getRandomElementFrom(":=")}${getRandomElementFrom("POD)]")}`;
+}
+
+function addBallToTable(table: Table, properties?: Partial<Ball>) {
   const ball = {
     id: getUniqueId(),
     cpos: v2(),
@@ -145,20 +149,23 @@ const addBallToTable = (table: Table, properties?: Partial<Ball>) => {
   table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Creation, ball));
 
   return ball;
-};
+}
 
-const getRandomPositionForBallOnTable = () =>
-  tablePadding + ballRadius + Math.floor(Math.random() * (squareCanvasSizeInPixels - (tablePadding + ballRadius) * 2));
+function getRandomPositionForBallOnTable() {
+  return (
+    tablePadding + ballRadius + Math.floor(Math.random() * (squareCanvasSizeInPixels - (tablePadding + ballRadius) * 2))
+  );
+}
 
-const placeBallInRandomPosition = (ball: Ball) => {
+function placeBallInRandomPosition(ball: Ball) {
   const x = getRandomPositionForBallOnTable();
   const y = getRandomPositionForBallOnTable();
   ball.cpos = v2(x, y);
   ball.ppos = v2(x, y);
-};
+}
 
-const isColliding = (firstObject: Ball, secondObject: Ball) =>
-  overlapCircleCircle(
+function isColliding(firstObject: Ball, secondObject: Ball) {
+  return overlapCircleCircle(
     firstObject.cpos.x,
     firstObject.cpos.y,
     firstObject.radius,
@@ -166,8 +173,9 @@ const isColliding = (firstObject: Ball, secondObject: Ball) =>
     secondObject.cpos.y,
     secondObject.radius
   );
+}
 
-const handleCollision = (firstObject: Ball, secondObject: Ball) => {
+function handleCollision(firstObject: Ball, secondObject: Ball) {
   if (firstObject.ownerSocketId || secondObject.ownerSocketId) {
     if (firstObject.ownerSocketId) secondObject.lastTouchedBySocketId = firstObject.ownerSocketId;
 
@@ -192,9 +200,9 @@ const handleCollision = (firstObject: Ball, secondObject: Ball) => {
     true,
     collisionDamping
   );
-};
+}
 
-const createBallForSocket = (socket: GameSocket) => {
+function createBallForSocket(socket: GameSocket) {
   if (!socket.data.table) return;
 
   socket.data.ball = addBallToTable(socket.data.table, {
@@ -203,20 +211,21 @@ const createBallForSocket = (socket: GameSocket) => {
     color: getRandomHexColor(),
     value: 9,
   });
-};
+}
 
-const deleteBallFromSocket = (socket: GameSocket) => {
+function deleteBallFromSocket(socket: GameSocket) {
   if (!socket.data.table || !socket.data.ball) return;
 
   deleteBallFromTable(socket.data.ball, socket.data.table);
 
   socket.data.ball = undefined;
-};
+}
 
-const getNumberOfNonPlayableBallsOnTable = (table: Table) =>
-  Array.from(table.balls.values()).filter((ball) => !ball.ownerSocketId).length;
+function getNumberOfNonPlayableBallsOnTable(table: Table) {
+  return Array.from(table.balls.values()).filter((ball) => !ball.ownerSocketId).length;
+}
 
-const handleSocketConnected = (socket: GameSocket) => {
+function handleSocketConnected(socket: GameSocket) {
   socket.data.nickname = `Player ${getUniqueId()}`;
   socket.data.score = 0;
 
@@ -226,20 +235,22 @@ const handleSocketConnected = (socket: GameSocket) => {
   addSocketToTable(socket, table);
 
   setupSocketListeners(socket);
-};
+}
 
-const handleSocketDisconnected = (socket: GameSocket) => {
+function handleSocketDisconnected(socket: GameSocket) {
   if (!socket.data.table) return;
   removeSocketFromTable(socket, socket.data.table);
-};
+}
 
-const broadcastChatMessageToTable = (message: string, table: Table) =>
-  table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Message, message));
+function broadcastChatMessageToTable(message: string, table: Table) {
+  return table.sockets.forEach((socket) => socket.emit(ServerToClientEventName.Message, message));
+}
 
-const broadcastChatMessageToAllTables = (message: string) =>
-  tables.forEach((table) => broadcastChatMessageToTable(message, table));
+function broadcastChatMessageToAllTables(message: string) {
+  return tables.forEach((table) => broadcastChatMessageToTable(message, table));
+}
 
-const accelerateBallFromSocket = (x: number, y: number, socket: GameSocket) => {
+function accelerateBallFromSocket(x: number, y: number, socket: GameSocket) {
   if (!socket.data.ball) return;
   const accelerationVector = v2();
   sub(accelerationVector, v2(x, y), socket.data.ball.cpos);
@@ -247,9 +258,9 @@ const accelerateBallFromSocket = (x: number, y: number, socket: GameSocket) => {
   const elasticityFactor = 20 * (distance(v2(x, y), socket.data.ball.cpos) / squareCanvasSizeInPixels);
   scale(accelerationVector, accelerationVector, elasticityFactor);
   add(socket.data.ball.acel, socket.data.ball.acel, accelerationVector);
-};
+}
 
-const handleMessageReceivedFromSocket = (message: string, socket: GameSocket) => {
+function handleMessageReceivedFromSocket(message: string, socket: GameSocket) {
   if (message.startsWith("/nick ")) {
     const trimmedNickname = message.replace("/nick ", "").trim().substring(0, maximumNicknameLength);
 
@@ -276,21 +287,21 @@ const handleMessageReceivedFromSocket = (message: string, socket: GameSocket) =>
   } else {
     broadcastChatMessageToAllTables(`💬 ${socket.data.nickname}: ${message}`);
   }
-};
+}
 
-const setupSocketListeners = (socket: GameSocket) => {
+function setupSocketListeners(socket: GameSocket) {
   socket.on("disconnect", () => handleSocketDisconnected(socket));
   socket.on(ClientToServerEventName.Message, (message) => handleMessageReceivedFromSocket(message, socket));
   socket.on(ClientToServerEventName.Click, (x, y) => accelerateBallFromSocket(x, y, socket));
-};
+}
 
-const checkCollisionWithTableEdges = (networkObject: Ball) => {
+function checkCollisionWithTableRails(ball: Ball) {
   tableRails.forEach(([pointA, pointB]) => {
-    if (rewindToCollisionPoint(networkObject, networkObject.radius, pointA, pointB))
+    if (rewindToCollisionPoint(ball, ball.radius, pointA, pointB))
       collideCircleEdge(
-        networkObject,
-        networkObject.radius,
-        networkObject.mass,
+        ball,
+        ball.radius,
+        ball.mass,
         {
           cpos: pointA,
           ppos: pointA,
@@ -305,18 +316,18 @@ const checkCollisionWithTableEdges = (networkObject: Ball) => {
         collisionDamping
       );
   });
-};
+}
 
-const deleteBallFromTable = (ball: Ball, table: Table) => {
+function deleteBallFromTable(ball: Ball, table: Table) {
   if (table.balls.has(ball.id)) {
     table.balls.delete(ball.id);
     table.sockets.forEach((targetSocket) => targetSocket.emit(ServerToClientEventName.Deletion, ball.id));
   }
 
   if (getNumberOfNonPlayableBallsOnTable(table) == 0) addNonPlayableBallsToTable(table);
-};
+}
 
-const checkCollisionWithScoreLines = (ball: Ball, table: Table) => {
+function checkCollisionWithScoreLines(ball: Ball, table: Table) {
   scoreLines.forEach(([pointA, pointB]) => {
     if (rewindToCollisionPoint(ball, ball.radius, pointA, pointB)) {
       deleteBallFromTable(ball, table);
@@ -342,9 +353,9 @@ const checkCollisionWithScoreLines = (ball: Ball, table: Table) => {
       }
     }
   });
-};
+}
 
-const emitObjectsPositionsToConnectedSockets = () => {
+function emitObjectsPositionsToConnectedSockets() {
   Array.from(tables.values())
     .filter((table) => table.balls.size)
     .forEach((table) => {
@@ -357,9 +368,9 @@ const emitObjectsPositionsToConnectedSockets = () => {
         socket.emit(ServerToClientEventName.Positions, positions);
       });
     });
-};
+}
 
-const emitScoreboardToConnectedSockets = () => {
+function emitScoreboardToConnectedSockets() {
   const tableIdPerScoreboardMap = new Map<number, Scoreboard>();
 
   tables.forEach((table) => {
@@ -394,9 +405,9 @@ const emitScoreboardToConnectedSockets = () => {
       socket.emit(ServerToClientEventName.Scoreboard, overallScoreboard, tableScoreboard);
     });
   });
-};
+}
 
-const repositionBallIfItIsOutOfTable = (ball: Ball) => {
+function repositionBallIfItIsOutOfTable(ball: Ball) {
   if (
     ball.cpos.x < 0 ||
     ball.cpos.x > squareCanvasSizeInPixels ||
@@ -405,9 +416,9 @@ const repositionBallIfItIsOutOfTable = (ball: Ball) => {
   ) {
     placeBallInRandomPosition(ball);
   }
-};
+}
 
-const updatePhysics = (deltaTime: number) => {
+function updatePhysics(deltaTime: number) {
   tables.forEach((table) => {
     Array.from(table.balls.values()).forEach((ball, _, balls) => {
       repositionBallIfItIsOutOfTable(ball);
@@ -415,26 +426,26 @@ const updatePhysics = (deltaTime: number) => {
       accelerate(ball, deltaTime);
 
       balls
-        .filter((otherNetworkObject) => ball !== otherNetworkObject && isColliding(ball, otherNetworkObject))
-        .forEach((otherNetworkObject) => handleCollision(ball, otherNetworkObject));
+        .filter((otherBalls) => ball !== otherBalls && isColliding(ball, otherBalls))
+        .forEach((otherBall) => handleCollision(ball, otherBall));
 
-      checkCollisionWithTableEdges(ball);
+      checkCollisionWithTableRails(ball);
 
       checkCollisionWithScoreLines(ball, table);
 
       inertia(ball);
     });
   });
-};
+}
 
-const getRandomHexColor = () => {
+function getRandomHexColor() {
   const randomInteger = (max: number) => Math.floor(Math.random() * (max + 1));
   const randomRgbColor = () => [randomInteger(255), randomInteger(255), randomInteger(255)];
   const [r, g, b] = randomRgbColor();
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-};
+}
 
-const handleMainLoopUpdate = (deltaTime: number) => {
+function handleMainLoopUpdate(deltaTime: number) {
   updatePhysics(deltaTime);
 
   timePassedSinceLastStateUpdateEmitted += deltaTime;
@@ -448,9 +459,9 @@ const handleMainLoopUpdate = (deltaTime: number) => {
     timePassedSinceLastScoreboardUpdate -= scoreboardUpdateMillisecondsInterval;
     emitScoreboardToConnectedSockets();
   }
-};
+}
 
-const addNonPlayableBallsToTable = (table: Table) => {
+function addNonPlayableBallsToTable(table: Table) {
   const [min, max] = nonPlayableBallsValuesRange;
   for (let value = min; value <= max; value++) {
     addBallToTable(table, {
@@ -460,25 +471,25 @@ const addNonPlayableBallsToTable = (table: Table) => {
       color: ballColors[value],
     });
   }
-};
+}
 
-const addSocketToTable = (socket: GameSocket, table: Table) => {
+function addSocketToTable(socket: GameSocket, table: Table) {
   table.sockets.set(socket.id, socket);
   socket.data.table = table;
   createBallForSocket(socket);
   socket.emit(ServerToClientEventName.Objects, Array.from(table.balls.values()));
   broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} joined Table ${table.id}!`);
-};
+}
 
-const removeSocketFromTable = (socket: GameSocket, table?: Table) => {
+function removeSocketFromTable(socket: GameSocket, table?: Table) {
   if (!table) return;
   deleteBallFromSocket(socket);
   table.sockets.delete(socket.id);
   socket.data.table = undefined;
   if (!table.sockets.size) deleteTable(table);
-};
+}
 
-const createTable = () => {
+function createTable() {
   const table = {
     id: getUniqueId(),
     sockets: new Map<string, GameSocket>(),
@@ -490,12 +501,12 @@ const createTable = () => {
   addNonPlayableBallsToTable(table);
 
   return table;
-};
+}
 
-const deleteTable = (table: Table) => {
+function deleteTable(table: Table) {
   Array.from(table.balls.values()).forEach((ball) => deleteBallFromTable(ball, table));
   tables.delete(table.id);
-};
+}
 
 MainLoop.setUpdate(handleMainLoopUpdate).start();
 
