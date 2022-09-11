@@ -395,8 +395,8 @@ function printHelpText() {
       `The goal is to keep the highest score as long as possible.\n\n` +
       `Click or touch the table to pull your yoyo.\n\n` +
       `Each ball has a value, and you should use yoyo maneuvers to bring them into the corner pockets.\n\n` +
-      `If you manage to push another yoyo into a corner pocket, you take part of their score.\n\n` +
-      `And if you end up in a corner pocket, you lose part of your score.\n\n` +
+      `If you push another yoyo into a corner pocket, you get part of their score, implying that you also lose part of your score if you end up in a corner pocket.\n\n` +
+      `When the table is clean, balls are brought back to the table. Tip: Focus on pocketing the balls with high value first.\n\n` +
       `There are several tables in the room, and you can communicate with players from other tables through this chat.\n\n` +
       `You can also run the following commands here:\n\n` +
       `Command: /nick <nickname>\n` +
