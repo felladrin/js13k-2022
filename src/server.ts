@@ -1,6 +1,5 @@
 import type { Socket } from "socket.io";
 import type { DefaultEventsMap } from "socket.io/dist/typed-events";
-import { createPubSub } from "create-pubsub";
 import MainLoop from "mainloop.js";
 import {
   accelerate,
@@ -55,17 +54,9 @@ const getUniqueId = () => {
   return id;
 };
 
-const [
-  publishTimePassedSinceLastStateUpdateEmitted,
-  subscribeToTimePassedSinceLastStateUpdateEmitted,
-  getTimePassedSinceLastStateUpdateEmitted,
-] = createPubSub(0);
+let timePassedSinceLastStateUpdateEmitted = 0;
 
-const [
-  publishTimePassedSinceLastScoreboardUpdate,
-  subscribeToTimePassedSinceLastScoreboardUpdate,
-  getTimePassedSinceLastScoreboardUpdate,
-] = createPubSub(0);
+let timePassedSinceLastScoreboardUpdate = 0;
 
 const maxSocketsPerTable = 4;
 
@@ -393,14 +384,14 @@ const emitScoreboardToConnectedSockets = () => {
 const handleUpdateOnTimePassedSinceLastStateUpdateEmitted = (timePassed: number) => {
   if (timePassed > objectsPositionsUpdateMillisecondsInterval) {
     emitObjectsPositionsToConnectedSockets();
-    publishTimePassedSinceLastStateUpdateEmitted(timePassed - objectsPositionsUpdateMillisecondsInterval);
+    timePassedSinceLastStateUpdateEmitted = timePassed - objectsPositionsUpdateMillisecondsInterval;
   }
 };
 
 const handleUpdateOnTimePassedSinceLastScoreboardUpdate = (timePassed: number) => {
   if (timePassed > scoreboardUpdateMillisecondsInterval) {
     emitScoreboardToConnectedSockets();
-    publishTimePassedSinceLastScoreboardUpdate(timePassed - scoreboardUpdateMillisecondsInterval);
+    timePassedSinceLastScoreboardUpdate = timePassed - scoreboardUpdateMillisecondsInterval;
   }
 };
 
@@ -431,8 +422,18 @@ const getRandomHexColor = () => {
 
 const handleMainLoopUpdate = (deltaTime: number) => {
   updatePhysics(deltaTime);
-  publishTimePassedSinceLastStateUpdateEmitted(getTimePassedSinceLastStateUpdateEmitted() + deltaTime);
-  publishTimePassedSinceLastScoreboardUpdate(getTimePassedSinceLastScoreboardUpdate() + deltaTime);
+
+  timePassedSinceLastStateUpdateEmitted += deltaTime;
+  if (timePassedSinceLastStateUpdateEmitted > objectsPositionsUpdateMillisecondsInterval) {
+    timePassedSinceLastStateUpdateEmitted -= objectsPositionsUpdateMillisecondsInterval;
+    emitObjectsPositionsToConnectedSockets();
+  }
+
+  timePassedSinceLastScoreboardUpdate += deltaTime;
+  if (timePassedSinceLastScoreboardUpdate > scoreboardUpdateMillisecondsInterval) {
+    timePassedSinceLastScoreboardUpdate -= scoreboardUpdateMillisecondsInterval;
+    emitScoreboardToConnectedSockets();
+  }
 };
 
 const addNotOwnedBallsToTable = (table: Table) => {
@@ -484,9 +485,6 @@ const deleteTable = (table: Table) => {
   Array.from(table.balls.values()).forEach((ball) => deleteBallFromTable(ball, table));
   tables.delete(table.id);
 };
-
-subscribeToTimePassedSinceLastScoreboardUpdate(handleUpdateOnTimePassedSinceLastScoreboardUpdate);
-subscribeToTimePassedSinceLastStateUpdateEmitted(handleUpdateOnTimePassedSinceLastStateUpdateEmitted);
 
 MainLoop.setUpdate(handleMainLoopUpdate).start();
 
