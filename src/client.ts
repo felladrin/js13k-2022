@@ -256,9 +256,19 @@ function getHoursFromLocalTime() {
 function sendChatMessage() {
   const messageToSend = chatInputField.value.trim();
   chatInputField.value = "";
-  if (!messageToSend.length) return;
-  if (messageToSend.startsWith("/help")) return printHelpText();
-  socket.emit(ClientToServerEventName.Message, messageToSend);
+  if (!messageToSend.length) {
+    return;
+  } else if (messageToSend.startsWith("/help")) {
+    return printHelpText();
+  } else if (messageToSend.startsWith("/soundon")) {
+    handleChatMessageReceived("📢 Sounds enabled.");
+    return publishSoundEnabled(true);
+  } else if (messageToSend.startsWith("/soundoff")) {
+    handleChatMessageReceived("📢 Sounds disabled.");
+    return publishSoundEnabled(false);
+  } else {
+    socket.emit(ClientToServerEventName.Message, messageToSend);
+  }
 }
 
 function handleKeyPressedOnChatInputField(event: KeyboardEvent) {
@@ -383,17 +393,22 @@ function printHelpText() {
   handleChatMessageReceived(
     `ℹ️ ${gameName} puts you in control of a yoyo on a multiplayer pool table!\n\n` +
       `The goal is to keep the highest score as long as possible.\n\n` +
-      `Each ball has a value, and you should use yoyo maneuvers to pull them into the corner pockets.\n\n` +
-      `If you manage to pull another yoyo into a corner pocket, you take part of their score.\n\n` +
-      `And if end up in a corner pocket, you lose score.\n\n` +
-      `Use this chat area to communicate with other players and run commands.\n\n` +
-      `Here's the list of commands you can run:\n\n` +
-      `- Command: /nick <nickname>\n` +
-      `  Description: Changes your nickname.\n\n` +
-      `- Command: /newtable\n` +
-      `  Description: Creates a new table.\n\n` +
-      `- Command: /jointable <number>\n` +
-      `  Description: Joins a specific table.\n`
+      `Click or touch the table to pull your yoyo.\n\n` +
+      `Each ball has a value, and you should use yoyo maneuvers to bring them into the corner pockets.\n\n` +
+      `If you manage to push another yoyo into a corner pocket, you take part of their score.\n\n` +
+      `And if you end up in a corner pocket, you lose part of your score.\n\n` +
+      `There are several tables in the room, and you can communicate with players from other tables through this chat.\n\n` +
+      `You can also run the following commands here:\n\n` +
+      `Command: /nick <nickname>\n` +
+      `Effect: Changes your nickname.\n\n` +
+      `Command: /newtable\n` +
+      `Effect: Starts a new game on an empty table.\n\n` +
+      `Command: /jointable <number>\n` +
+      `Effect: Joins the game from a specific table.\n\n` +
+      `Command: /soundon\n` +
+      `Effect: Enables sounds.\n\n` +
+      `Command: /soundoff\n` +
+      `Effect: Disables sounds.\n`
   );
 }
 
