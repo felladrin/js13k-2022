@@ -454,9 +454,7 @@ const addSocketToTable = (socket: GameSocket, table: Table) => {
   table.sockets.set(socket.id, socket);
   socket.data.table = table;
   createBallForSocket(socket);
-
   socket.emit(ServerToClientEventName.Objects, Array.from(table.balls.values()));
-
   broadcastChatMessageToAllTables(`📢 ${socket.data.nickname} joined Table ${table.id}!`);
 };
 
@@ -465,6 +463,7 @@ const removeSocketFromTable = (socket: GameSocket, table: Table) => {
   deleteBallFromSocket(socket);
   table.sockets.delete(socket.id);
   socket.data.table = undefined;
+  if (!table.sockets.size) deleteTable(table);
 };
 
 const createTable = () => {
@@ -479,6 +478,11 @@ const createTable = () => {
   addNotOwnedBallsToTable(table);
 
   return table;
+};
+
+const deleteTable = (table: Table) => {
+  Array.from(table.balls.values()).forEach((ball) => deleteBallFromTable(ball, table));
+  tables.delete(table.id);
 };
 
 subscribeToTimePassedSinceLastScoreboardUpdate(handleUpdateOnTimePassedSinceLastScoreboardUpdate);
