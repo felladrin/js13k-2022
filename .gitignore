@@ -2,3 +2,4 @@
 /js13kserver
 /*.zip
 /.vscode
+.DS_Store

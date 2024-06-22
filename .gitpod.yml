@@ -1,9 +1,0 @@
-tasks:
-  - init: npm ci
-    command: npm run dev
-ports:
-  - name: Dev Server
-    description: For running the game during development.
-    port: 3000
-    visibility: public
-    onOpen: open-preview

@@ -1,0 +1,7 @@
+title: YoYo Haku Pool
+emoji: 🪀🎱
+colorFrom: green
+colorTo: indigo
+short_description: You in control of a yoyo on a multiplayer pool table!
+pinned: false
+sdk: docker
